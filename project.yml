@@ -15,10 +15,12 @@ targets:
     sources:
       - path: Sources
       - path: Assets.xcassets
-    resources:
       - path: Resources/Web/index.html
+        buildPhase: resources
       - path: Resources/Web/three.min.js
+        buildPhase: resources
       - path: Resources/Web/OrbitControls.js
+        buildPhase: resources
     info:
       path: Info.plist
       properties:

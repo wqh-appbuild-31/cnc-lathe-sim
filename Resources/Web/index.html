@@ -4,6 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}</style>
+<style>
+/* ===== 车工工具箱（3.5pro 新增模块） ===== */
+.tb input,.tb select,.tb textarea{font-size:16px}
+.tb textarea.tb-code{width:100%;box-sizing:border-box;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.5;padding:8px;resize:vertical;margin-top:8px}
+.tb-params{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0}
+.tb .fld2{display:grid;gap:4px}
+.tb .fld2>span{font-size:13px;opacity:.85}
+.tb .fld2 input,.tb .fld2 select{width:100%;box-sizing:border-box}
+.tb-btns{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.tb button{font-size:16px;padding:8px 14px;white-space:nowrap;cursor:pointer}
+.tb button:disabled{opacity:.45;cursor:default}
+.tb-seg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:6px;align-items:end;margin-bottom:6px}
+.tb-seg.c3{grid-template-columns:repeat(3,minmax(0,1fr)) auto}
+.tb-seg label{display:grid;gap:2px}
+.tb-seg label>span{font-size:12px;opacity:.8}
+.tb-seg input{width:100%;box-sizing:border-box}
+.tb-drow{display:flex;gap:10px;align-items:baseline;padding:7px 2px;border-bottom:1px solid rgba(128,128,128,.22)}
+.tb-drow .cd{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:var(--amber,#f0a12b);min-width:52px}
+.tb-drow .nm{font-weight:600}
+.tb-drow .ds{opacity:.92}
+.tb-sym{font-size:21px;min-width:42px;text-align:center;color:var(--cyan,#3ec6da)}
+.tb-symbox{display:inline-block;border:1.5px solid currentColor;border-radius:2px;padding:0 6px;font-size:16px;line-height:1.3}
+.tb-grp{font-weight:700;margin:12px 0 2px;color:var(--cyan,#3ec6da)}
+.tb-err{color:#ff8a7a}
+.tb-lib-it{border:1px solid rgba(128,128,128,.3);border-radius:8px;padding:8px;margin:8px 0}
+.tb-lib-it .nm{font-weight:700}
+.tb-lib-it .dt{opacity:.7;font-size:12px}
+.tb-lib-it .tb-btns{margin-bottom:0}
+</style>
 </head>
 <body>
 <title>数控车编程3D模拟</title>
@@ -657,6 +686,388 @@ td.ok{color:var(--ok)}td.bad{color:var(--bad);font-weight:700}
       <label class="field"><span>圆弧 R</span><input type="number" id="bR" value="10" step="any" inputmode="decimal"></label>
       <div class="pt"><b>直线另一头</b><label class="field"><span>X</span><input type="number" id="bPx" value="30" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="bPz" value="-40" step="any" inputmode="decimal"></label></div>
       <div class="out" id="oB"></div>
+    </div>
+    <div class="card tb" id="tbTol">
+      <h3>公差查询（ISO 286）</h3>
+      <label class="field"><span>基本尺寸 <small>毫米</small></span><input type="number" id="xTolSize" value="25" step="any" inputmode="decimal"></label>
+      <label class="field"><span>公差带</span><select id="xTolBand">
+        <option>H6</option><option selected>H7</option><option>H8</option>
+        <option>h6</option><option>h7</option><option>g6</option><option>f7</option>
+        <option>k6</option><option>m6</option><option>n6</option><option>p6</option><option>s6</option>
+      </select></label>
+      <div class="out" id="xTolOut"></div>
+      <p class="note">H 是孔（下偏差 0），小写是轴。过盈不够/间隙不对，先对这张表，别靠手感。</p>
+    </div>
+    <div class="card tb" id="tbThread">
+      <h3>螺纹计算（公制）</h3>
+      <label class="field"><span>规格 <small>选了自动填粗牙螺距</small></span><select id="xThSel"></select></label>
+      <label class="field"><span>大径 <small>毫米</small></span><input type="number" id="xThD" value="20" step="any" inputmode="decimal"></label>
+      <label class="field"><span>螺距 <small>细牙自己改</small></span><input type="number" id="xThP" value="2.5" step="any" inputmode="decimal"></label>
+      <div class="out" id="xThOut"></div>
+      <p class="note">外螺纹牙高按 0.6134×螺距（车削参考），小径按大径 − 1.0825×螺距；精确尺寸以图纸和螺纹规为准。</p>
+    </div>
+    <div class="card tb" id="tbPipe">
+      <h3>管螺纹速查（G / Rc）</h3>
+      <label class="field"><span>规格</span><select id="xPipeSel"></select></label>
+      <div class="out" id="xPipeOut"></div>
+      <p class="note">G 是 55° 圆柱管螺纹，不带锥度，靠垫圈/生料带密封。Rc 是 55° 锥管螺纹，锥度 1:16，尺寸看基准面：在基准面量大径，车的时候按基准距控制深度，不能只盯大径。</p>
+    </div>
+    <div class="card tb" id="tbWire">
+      <h3>三针法测螺纹中径</h3>
+      <label class="field"><span>公称直径</span><input type="number" id="xWireD" value="20" step="any" inputmode="decimal"></label>
+      <label class="field"><span>螺距</span><input type="number" id="xWireP" value="2.5" step="any" inputmode="decimal"></label>
+      <label class="field"><span>量针直径 <small>填 0 用最佳量针</small></span><input type="number" id="xWireW" value="0" step="any" inputmode="decimal"></label>
+      <div class="out" id="xWireOut"></div>
+      <p class="note">公式 M = 基本中径 + 3×量针 − 0.866×螺距（60° 公制）。量出来的 M 比这个大，中径就偏大。最佳量针 = 0.577×螺距，正好骑在中径线上。</p>
+    </div>
+    <div class="card tb" id="tbTaper">
+      <h3>锥度计算</h3>
+      <p class="note">大头、小头、锥长、锥度比（1:K 的 K），空一个算一个；四个都填时按大头小头锥长重算锥度比。</p>
+      <label class="field"><span>大头直径</span><input type="number" id="xTpD" value="50" step="any" inputmode="decimal"></label>
+      <label class="field"><span>小头直径</span><input type="number" id="xTpd" value="40" step="any" inputmode="decimal"></label>
+      <label class="field"><span>锥长</span><input type="number" id="xTpL" value="100" step="any" inputmode="decimal"></label>
+      <label class="field"><span>锥度比 K <small>1:K，可空</small></span><input type="number" id="xTpK" step="any" inputmode="decimal"></label>
+      <div class="out" id="xTpOut"></div>
+      <p class="note">莫氏锥度速查（大端直径 / 锥度比）：</p>
+      <div class="tablewrap" id="xTpMorse"></div>
+    </div>
+    <div class="card tb" id="tbTri">
+      <h3>解三角形</h3>
+      <label class="field"><span>已知条件</span><select id="xTriMode">
+        <option value="rll">直角：两条直角边</option>
+        <option value="rla">直角：一条边 + 一个锐角</option>
+        <option value="sss">任意：三条边</option>
+        <option value="sas">任意：两边 + 夹角</option>
+        <option value="asa">任意：两角 + 夹边</option>
+      </select></label>
+      <p class="note" id="xTriHint"></p>
+      <div class="tb-params">
+        <label class="fld2"><span>边 a</span><input type="number" id="xTriA" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>边 b</span><input type="number" id="xTriB" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>边 c</span><input type="number" id="xTriC" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>角 A（度）</span><input type="number" id="xTriAngA" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>角 B（度）</span><input type="number" id="xTriAngB" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>角 C（度）</span><input type="number" id="xTriAngC" step="any" inputmode="decimal"></label>
+      </div>
+      <div class="out" id="xTriOut"></div>
+      <p class="note">边和对面的角同字母。直角时 C 是直角。</p>
+    </div>
+    <div class="card tb" id="tbGeo">
+      <h3>编程坐标点（求交点/切点）</h3>
+      <label class="field"><span>算什么</span><select id="xGeoMode">
+        <option value="ll">两条直线交点</option>
+        <option value="lc">直线与圆的交点/切点</option>
+        <option value="cc">两个圆的交点</option>
+        <option value="fillet">两直线间 R 圆弧过渡</option>
+      </select></label>
+      <p class="note" id="xGeoHint"></p>
+      <div class="pt"><b>点 A</b><label class="field"><span>X</span><input type="number" id="xGeoAx" value="20" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="xGeoAz" value="0" step="any" inputmode="decimal"></label></div>
+      <div class="pt"><b>点 B</b><label class="field"><span>X</span><input type="number" id="xGeoBx" value="40" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="xGeoBz" value="-20" step="any" inputmode="decimal"></label></div>
+      <div class="pt"><b>点 C</b><label class="field"><span>X</span><input type="number" id="xGeoCx" value="40" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="xGeoCz" value="0" step="any" inputmode="decimal"></label></div>
+      <div class="pt" id="xGeoRowD"><b>点 D</b><label class="field"><span>X</span><input type="number" id="xGeoDx" value="40" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="xGeoDz" value="-50" step="any" inputmode="decimal"></label></div>
+      <label class="field"><span>圆弧 R <small>线圆/圆圆是圆1，过渡是圆角</small></span><input type="number" id="xGeoR" value="10" step="any" inputmode="decimal"></label>
+      <label class="field" id="xGeoRowR2"><span>圆 2 的 R</span><input type="number" id="xGeoR2" value="10" step="any" inputmode="decimal"></label>
+      <div class="out" id="xGeoOut"></div>
+      <p class="note">X 都填直径，和编程序一个口径，内部按半径算。</p>
+    </div>
+    <div class="card tb" id="tbSpeed">
+      <h3>转速进给时间</h3>
+      <div class="tb-params">
+        <label class="fld2"><span>工件直径（毫米）</span><input type="number" id="xSpD" value="50" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>线速度（米/分）</span><input type="number" id="xSpVc" value="100" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>转速（转/分）</span><input type="number" id="xSpN" value="637" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>每转进给（毫米/转）</span><input type="number" id="xSpF" value="0.2" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>每分钟进给（毫米/分）</span><input type="number" id="xSpFm" value="127" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>切削长度（毫米）</span><input type="number" id="xSpL" value="100" step="any" inputmode="decimal"></label>
+      </div>
+      <div class="out" id="xSpOut"></div>
+      <p class="note">n = 1000×线速度 ÷ (π×直径)；每分钟进给 = 每转进给 × 转速；时间只算切削那一段，不含快移和换刀。</p>
+    </div>
+    <div class="card tb" id="tbRough">
+      <h3>粗糙度估算</h3>
+      <label class="field"><span>每转进给 <small>毫米/转</small></span><input type="number" id="xRfF" value="0.2" step="any" inputmode="decimal"></label>
+      <label class="field"><span>刀尖 R <small>毫米</small></span><input type="number" id="xRfR" value="0.8" step="any" inputmode="decimal"></label>
+      <div class="out" id="xRfOut"></div>
+      <p class="note">理论值：Ra ≈ 进给² ÷ (32×刀尖R)，Rz ≈ 进给² ÷ (8×刀尖R)。实际还看刀具状态、材料和震动，一般比理论值差。</p>
+      <p class="note">常用组合 Ra 速查（微米，行=进给，列=刀尖 R）：</p>
+      <div class="tablewrap" id="xRfTable"></div>
+      <p class="note">Ra 与旧光洁度 ▽ 对照：</p>
+      <div class="tablewrap" id="xRaTable"></div>
+    </div>
+    <div class="card tb" id="tbNose">
+      <h3>刀尖 R 补偿量</h3>
+      <label class="field"><span>刀尖 R <small>毫米</small></span><input type="number" id="xNsR" value="0.8" step="any" inputmode="decimal"></label>
+      <label class="field"><span>锥面半角 <small>度，45° 倒角填 45</small></span><input type="number" id="xNsA" value="45" step="any" inputmode="decimal"></label>
+      <label class="field"><span>外锥还是内锥</span><select id="xNsType"><option value="out">外锥 / 外圆倒角</option><option value="in">内锥（孔里的）</option></select></label>
+      <div class="out" id="xNsOut"></div>
+      <p class="note">不用 G41/G42 时，刀尖圆弧会让锥面、倒角差一截。不补的办法：按这里算出的量改编程尺寸，或者干脆开刀尖补偿。外圆和端面不受影响，不用补。</p>
+    </div>
+    <div class="card tb" id="tbWeight">
+      <h3>材料重量</h3>
+      <label class="field"><span>外径 <small>毫米</small></span><input type="number" id="xWtD" value="50" step="any" inputmode="decimal"></label>
+      <label class="field"><span>内径 <small>实心填 0</small></span><input type="number" id="xWtD2" value="0" step="any" inputmode="decimal"></label>
+      <label class="field"><span>长度 <small>毫米</small></span><input type="number" id="xWtL" value="100" step="any" inputmode="decimal"></label>
+      <label class="field"><span>材料</span><select id="xWtMat">
+        <option value="7.85" selected>钢（7.85）</option><option value="7.93">不锈钢（7.93）</option>
+        <option value="7.2">铸铁（7.2）</option><option value="2.7">铝（2.7）</option>
+        <option value="8.9">铜（8.9）</option><option value="4.5">钛（4.5）</option>
+      </select></label>
+      <div class="out" id="xWtOut"></div>
+    </div>
+    <div class="card tb" id="tbBar">
+      <h3>棒料出件数</h3>
+      <label class="field"><span>料总长</span><input type="number" id="xBarT" value="1000" step="any" inputmode="decimal"></label>
+      <label class="field"><span>单件长</span><input type="number" id="xBarP" value="100" step="any" inputmode="decimal"></label>
+      <label class="field"><span>切断刀宽</span><input type="number" id="xBarW" value="3" step="any" inputmode="decimal"></label>
+      <label class="field"><span>夹持余量 <small>留卡盘里夹住的</small></span><input type="number" id="xBarC" value="150" step="any" inputmode="decimal"></label>
+      <label class="field"><span>端面修整量 <small>料头先车平用掉的</small></span><input type="number" id="xBarTrim" value="5" step="any" inputmode="decimal"></label>
+      <div class="out" id="xBarOut"></div>
+    </div>
+    <div class="card tb" id="tbHard">
+      <h3>硬度换算</h3>
+      <label class="field"><span>我手里是</span><select id="xHdKind"><option value="hrc">洛氏 HRC</option><option value="hb">布氏 HB</option><option value="hv">维氏 HV</option></select></label>
+      <label class="field"><span>数值</span><input type="number" id="xHdVal" value="40" step="any" inputmode="decimal"></label>
+      <div class="out" id="xHdOut"></div>
+      <p class="note">钢的近似对照（查表插值），不同手册能差几个数，要求严的按图纸指定的方法实测。</p>
+    </div>
+    <div class="card tb" id="tbUnit">
+      <h3>单位换算</h3>
+      <div class="tb-params">
+        <label class="fld2"><span>毫米 → 英寸</span><input type="number" id="xUnMm" value="10" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>英寸 → 毫米</span><input type="number" id="xUnIn" value="1" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>度 → 弧度</span><input type="number" id="xUnDeg" value="45" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>弧度 → 度</span><input type="number" id="xUnRad" value="1" step="any" inputmode="decimal"></label>
+      </div>
+      <div class="out" id="xUnOut"></div>
+      <p class="note">1 英寸 = 25.4 毫米。分数英寸按 1/64 就近取，量具读数对照用。</p>
+    </div>
+    <div class="card tb" id="tbTaperTh">
+      <h3>锥管螺纹速查（Rc / NPT）</h3>
+      <label class="field"><span>系列</span><select id="xTtSeries">
+        <option value="rc">Rc 制 · 55°（国标 GB/T 7306）</option>
+        <option value="npt">NPT 制 · 60°（美制 ASME B1.20.1）</option>
+      </select></label>
+      <label class="field"><span>规格</span><select id="xTtSize"></select></label>
+      <div class="out" id="xTtOut"></div>
+      <p class="note">两系锥度都是 1:16，半角 1°47′24″，但牙型角不同（55° / 60°），不能混用。表里直径是基准平面处的：基准平面在小端面往里一个基准距离的位置，端面处直径要再减 基准距离÷16。程序在下面的「程序生成 · 螺纹」里选锥管螺纹出。</p>
+    </div>
+    <div class="card tb" id="tbTap">
+      <h3>攻丝底孔速查（收藏表）</h3>
+      <p class="note">按收藏的《螺纹底孔直径表》原样录入（范围值，以图为准）。公式分两档：钢 / 硬材料 D钻 = D − P；铝 / 铜等软材料 D钻 = D − 1.0825×P。「公式核对」列就是 D − P，已逐行对过：44 行全部落在图中范围内。</p>
+      <p class="note">普通粗牙：</p>
+      <div class="tablewrap" id="xTapC"></div>
+      <p class="note">普通细牙：</p>
+      <div class="tablewrap" id="xTapF"></div>
+    </div>
+    <div class="card tb" id="tbGenOd">
+      <h3>程序生成 · 阶梯外圆（G71+G70）</h3>
+      <label class="field"><span>毛坯直径</span><input type="number" id="xOdD0" value="56" step="any" inputmode="decimal"></label>
+      <p class="note">每段一行：直径 / 长度 / 倒角 C / 根部圆角 R（没有就填 0）。从端面往卡盘方向排，只能一段比一段粗。</p>
+      <div id="xOdSegs"></div>
+      <div class="tb-btns"><button type="button" id="xOdAdd">＋ 加一段</button></div>
+      <div class="tb-params">
+        <label class="fld2"><span>转速 S</span><input type="number" id="xOdS" value="800" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>粗车进给</span><input type="number" id="xOdFR" value="0.25" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>精车进给</span><input type="number" id="xOdFF" value="0.12" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>每刀吃深</span><input type="number" id="xOdAp" value="1.5" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>退刀量 R</span><input type="number" id="xOdRet" value="0.5" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>精车余量 X</span><input type="number" id="xOdAU" value="0.4" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>精车余量 Z</span><input type="number" id="xOdAW" value="0.1" step="any" inputmode="decimal"></label>
+      </div>
+      <textarea class="tb-code" id="xOdOut" readonly rows="11" aria-label="生成的外圆程序"></textarea>
+      <div class="out" id="xOdNote"></div>
+      <div class="tb-btns"><button type="button" id="xOdSend">送入模拟器</button><button type="button" id="xOdCopy">复制程序</button></div>
+    </div>
+    <div class="card tb" id="tbGenBore">
+      <h3>程序生成 · 内孔镗孔</h3>
+      <div class="tb-params">
+        <label class="fld2"><span>毛坯外径</span><input type="number" id="xBoD0" value="80" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>预钻孔直径</span><input type="number" id="xBoHole" value="25" step="any" inputmode="decimal"></label>
+      </div>
+      <p class="note">每段一行：孔径 / 深度 / 孔口倒角 C（倒角只用第一段）。孔越往里只能越大。单段孔出 G71+G70；多段台阶孔自动改成分层镗 + 精镗（G71 一型镗台阶孔会把小孔段犁大）。</p>
+      <div id="xBoSegs"></div>
+      <div class="tb-btns"><button type="button" id="xBoAdd">＋ 加一段</button></div>
+      <div class="tb-params">
+        <label class="fld2"><span>转速 S</span><input type="number" id="xBoS" value="700" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>粗镗进给</span><input type="number" id="xBoFR" value="0.2" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>精镗进给</span><input type="number" id="xBoFF" value="0.1" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>每刀吃深</span><input type="number" id="xBoAp" value="1.2" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>退刀量 R</span><input type="number" id="xBoRet" value="0.5" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>精车余量（径向）</span><input type="number" id="xBoAl" value="0.3" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>精车余量 Z</span><input type="number" id="xBoAW" value="0.1" step="any" inputmode="decimal"></label>
+      </div>
+      <textarea class="tb-code" id="xBoOut" readonly rows="11" aria-label="生成的镗孔程序"></textarea>
+      <div class="out" id="xBoNote"></div>
+      <div class="tb-btns"><button type="button" id="xBoSend">送入模拟器</button><button type="button" id="xBoCopy">复制程序</button></div>
+    </div>
+    <div class="card tb" id="tbGenGroove">
+      <h3>程序生成 · 切槽</h3>
+      <label class="field"><span>槽的类型</span><select id="xGrType">
+        <option value="od">外圆槽</option><option value="in">内孔槽</option><option value="face">端面槽</option>
+      </select></label>
+      <div id="xGrOd">
+        <div class="tb-params">
+          <label class="fld2"><span>毛坯直径</span><input type="number" id="xGrD0" value="50" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽底直径</span><input type="number" id="xGrDg" value="38" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽宽</span><input type="number" id="xGrW" value="13" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽位置（右边缘离端面）</span><input type="number" id="xGrPos" value="18" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽刀宽</span><input type="number" id="xGrKw" value="4" step="any" inputmode="decimal"></label>
+        </div>
+      </div>
+      <div id="xGrIn" hidden>
+        <div class="tb-params">
+          <label class="fld2"><span>毛坯外径</span><input type="number" id="xGrID0" value="70" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>孔径（槽前）</span><input type="number" id="xGrDb" value="30" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽底直径</span><input type="number" id="xGrIDg" value="38" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽宽</span><input type="number" id="xGrIW" value="10" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽位置（右边缘离孔口）</span><input type="number" id="xGrIPos" value="15" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽刀宽</span><input type="number" id="xGrIKw" value="3" step="any" inputmode="decimal"></label>
+        </div>
+      </div>
+      <div id="xGrFace" hidden>
+        <div class="tb-params">
+          <label class="fld2"><span>毛坯直径</span><input type="number" id="xGrFD0" value="60" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽外径</span><input type="number" id="xGrDo" value="48" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽内径</span><input type="number" id="xGrDi" value="30" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽深</span><input type="number" id="xGrDep" value="4" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>槽刀宽</span><input type="number" id="xGrFKw" value="4" step="any" inputmode="decimal"></label>
+        </div>
+      </div>
+      <div class="tb-params">
+        <label class="fld2"><span>转速 S</span><input type="number" id="xGrS" value="600" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>切入进给</span><input type="number" id="xGrF" value="0.08" step="any" inputmode="decimal"></label>
+      </div>
+      <textarea class="tb-code" id="xGrOut" readonly rows="10" aria-label="生成的切槽程序"></textarea>
+      <div class="out" id="xGrNote"></div>
+      <div class="tb-btns"><button type="button" id="xGrSend">送入模拟器</button><button type="button" id="xGrCopy">复制程序</button></div>
+    </div>
+    <div class="card tb" id="tbGenDrill">
+      <h3>程序生成 · 钻深孔（啄钻）</h3>
+      <div class="tb-params">
+        <label class="fld2"><span>毛坯直径</span><input type="number" id="xDrD0" value="40" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>总深度</span><input type="number" id="xDrDepth" value="30" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>每啄深度 Q</span><input type="number" id="xDrQ" value="8" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>转速 S</span><input type="number" id="xDrS" value="800" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>进给</span><input type="number" id="xDrF" value="0.12" step="any" inputmode="decimal"></label>
+      </div>
+      <p class="note">展开写成分段进给，不用 G83，哪台机床都能跑。提醒：模拟器不模拟钻孔，送进去会报警说撞工件——那是它没给钻头建模，程序本身没问题；「送入模拟器」照样能送，只是别拿它的报警判断钻孔程序。</p>
+      <textarea class="tb-code" id="xDrOut" readonly rows="10" aria-label="生成的啄钻程序"></textarea>
+      <div class="out" id="xDrNote"></div>
+      <div class="tb-btns"><button type="button" id="xDrSend">送入模拟器</button><button type="button" id="xDrCopy">复制程序</button></div>
+    </div>
+    <div class="card tb" id="tbGenThread">
+      <h3>程序生成 · 螺纹（直 / 锥管）</h3>
+      <label class="field"><span>螺纹类型</span><select id="xGtKind">
+        <option value="s-out">直螺纹 · 外</option>
+        <option value="s-in">直螺纹 · 内</option>
+        <option value="t-out">锥管螺纹 · 外</option>
+        <option value="t-in">锥管螺纹 · 内</option>
+      </select></label>
+      <div id="xGtStraight">
+        <div class="tb-params">
+          <label class="fld2"><span>大径</span><input type="number" id="xGtD" value="20" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>螺距</span><input type="number" id="xGtP" value="2.5" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>螺纹长度</span><input type="number" id="xGtLen" value="25" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>生成方式</span><select id="xGtMethod">
+            <option value="g92">G92 多刀</option><option value="g76">G76 两行</option>
+          </select></label>
+        </div>
+        <div class="tb-params" id="xGtInRows" hidden>
+          <label class="fld2"><span>内螺纹底孔（已钻/镗好）</span><input type="number" id="xGtBore" value="17.5" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>毛坯外径</span><input type="number" id="xGtBlankD" value="36" step="any" inputmode="decimal"></label>
+        </div>
+      </div>
+      <div id="xGtTaper" hidden>
+        <div class="tb-params">
+          <label class="fld2"><span>系列</span><select id="xGtSeries">
+            <option value="rc">Rc 制 55°（GB/T 7306）</option>
+            <option value="npt">NPT 制 60°（美制）</option>
+          </select></label>
+          <label class="fld2"><span>规格</span><select id="xGtSize"></select></label>
+          <label class="fld2"><span>有效螺纹长（已按标准填，可改）</span><input type="number" id="xGtLeff" value="13.2" step="any" inputmode="decimal"></label>
+          <label class="fld2"><span>生成方式</span><select id="xGtTMethod">
+            <option value="g92">G92 带 R 多刀（可送入模拟器）</option>
+            <option value="g76">G76 两行（真机用）</option>
+          </select></label>
+        </div>
+        <div class="out" id="xGtTInfo"></div>
+        <p class="note">锥度 1:16。G92 的 R 按 FANUC 约定 = 起点半径 − 终点半径，往里越车越大所以是负数，模拟器已实测同一约定、能正确跑锥度。G76 锥螺纹模拟器不模拟（只按直的跑），选 G76 时「送入模拟器」会关掉，程序供真机使用。</p>
+      </div>
+      <label class="field"><span>主轴转速 S</span><input type="number" id="xGtS" value="600" step="any" inputmode="decimal"></label>
+      <textarea class="tb-code" id="xGtOut" readonly rows="11" aria-label="生成的螺纹程序"></textarea>
+      <div class="out" id="xGtNote"></div>
+      <div class="tb-btns"><button type="button" id="xGtSend">送入模拟器</button><button type="button" id="xGtCopy">复制程序</button></div>
+    </div>
+    <div class="card tb" id="tbGenCurve">
+      <h3>程序生成 · 椭圆 / 抛物线轮廓</h3>
+      <div class="tb-params">
+        <label class="fld2"><span>轮廓</span><select id="xCvKind">
+          <option value="ellipse">椭圆（四分之一）</option><option value="parabola">抛物线</option>
+        </select></label>
+        <label class="fld2"><span>毛坯直径</span><input type="number" id="xCvD0" value="50" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>起点直径（端面处）</span><input type="number" id="xCvDA" value="10" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>终点直径</span><input type="number" id="xCvDB" value="44" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>轮廓长度</span><input type="number" id="xCvL" value="22" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>拟合步距</span><input type="number" id="xCvStep" value="1" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>转速 S</span><input type="number" id="xCvS" value="800" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>粗车进给</span><input type="number" id="xCvFR" value="0.25" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>精车进给</span><input type="number" id="xCvFF" value="0.12" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>每刀吃深</span><input type="number" id="xCvAp" value="1.5" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>退刀量 R</span><input type="number" id="xCvRet" value="0.5" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>精车余量 X</span><input type="number" id="xCvAU" value="0.4" step="any" inputmode="decimal"></label>
+        <label class="fld2"><span>精车余量 Z</span><input type="number" id="xCvAW" value="0.1" step="any" inputmode="decimal"></label>
+      </div>
+      <p class="note">曲线用一小段一小段直线拟合后套 G71+G70，不用宏变量。步距越小越光滑、程序越长。</p>
+      <textarea class="tb-code" id="xCvOut" readonly rows="11" aria-label="生成的曲线轮廓程序"></textarea>
+      <div class="out" id="xCvNote"></div>
+      <div class="tb-btns"><button type="button" id="xCvSend">送入模拟器</button><button type="button" id="xCvCopy">复制程序</button></div>
+    </div>
+    <div class="card tb" id="tbDict">
+      <h3>G / M 代码速查</h3>
+      <label class="field"><span>搜索</span><input type="search" id="xDictQ" placeholder="比如 G71、螺纹、暂停" aria-label="搜索代码"></label>
+      <p class="note" id="xDictCount"></p>
+      <div id="xDictList"></div>
+      <p class="note">FANUC / 广数车床常用代码，离线内置。个别代码各系统含义有出入（比如华中 G80 系列），以机床说明书为准。</p>
+    </div>
+    <div class="card tb" id="tbSym">
+      <h3>图纸符号速查</h3>
+      <label class="field"><span>搜索</span><input type="search" id="xSymQ" placeholder="比如 位置度、沉头孔、锥度" aria-label="搜索符号"></label>
+      <p class="note" id="xSymCount"></p>
+      <div id="xSymList"></div>
+      <p class="note">形位公差 14 项（GB/T 1182）+ 制图常用符号合并去重。符号后面都跟了名称，个别符号在个别手机上显示不出来时，看名称和说明也一样查。</p>
+    </div>
+    <div class="card tb" id="tbLib">
+      <h3>程序库（存本机）</h3>
+      <label class="field"><span>程序名</span><input type="text" id="xLibName" placeholder="比如 阶梯轴 Φ30-40-50" aria-label="程序名"></label>
+      <div class="tb-btns"><button type="button" id="xLibSave">把编辑器里的程序存进来</button></div>
+      <div class="out" id="xLibNote"></div>
+      <div id="xLibList"></div>
+      <p class="note">存在这台手机的浏览器本地。清缓存、换浏览器、无痕模式都会清掉，重要程序记得复制出去备份。载入只换程序，毛坯按模拟器当前设置。</p>
+    </div>
+    <div class="card tb" id="tbCutParam">
+      <h3>切削参数推荐（经验参考值）</h3>
+      <div class="tablewrap" id="xCutTable"></div>
+      <p class="note">线速度米/分，进给毫米/转。车间经验范围，不是标准：机床刚性、装夹、刀片型号差很多，先取中间值试切，再往上摸。</p>
+    </div>
+    <div class="card tb" id="tbToolAng">
+      <h3>车刀角度参考（经验值）</h3>
+      <div class="tablewrap" id="xAngTable"></div>
+      <p class="note">硬质合金外圆车刀的常用搭配，经验值。刃磨和选刀片时对个大概，具体看刀片厂家样本和实际切削状态（断屑、震动、光洁度）。</p>
+    </div>
+    <div class="card tb" id="tbRef">
+      <h3>网纹 / 8 字油槽（参数参考）</h3>
+      <p class="note"><b>网纹（滚花）</b>：按模数选滚花轮，模数 m 与节距 p 对照：m0.2 → p≈0.628；m0.3 → p≈0.942；m0.4 → p≈1.257；m0.5 → p≈1.571（p = π×m）。直纹是沿轴向的直齿，菱形（网纹）是左右斜纹交叉，花更牢、更防滑。</p>
+      <p class="note">滚花是挤压成形、材料会往外涨：滚花前直径 ≈ 要的滚花大径 − 0.5×节距（经验值），先少车一点、试滚一小段量准了再定尺寸。滚花时转速放低、进给慢一点、全程加油，别一刀压死。</p>
+      <p class="note"><b>8 字油槽</b>：轴套、衬套内孔里存油润滑的交叉油槽，两条螺旋槽交叉成 8 字形，油能布满整个摩擦面。经验尺寸：槽宽 3～6 毫米、深 0.5～1 毫米，两端不要贯通到边（留一点封油）。车床上一般用手工修磨的油槽钩刀、低转速慢慢拖出来，或者拉床拉制。这两个都只给参数参考，不生成程序。</p>
+    </div>
+    <div class="card tb" id="tbAbout">
+      <h3>说明：数据口径与模拟器局限</h3>
+      <p class="note"><b>国标 / 标准表数据</b>：公差（ISO 286）、公制螺纹牙型与粗牙螺距、G 管螺纹（GB/T 7307）、Rc 锥管螺纹（GB/T 7306 / ISO 7-1）、NPT（ASME B1.20.1）、莫氏锥度、三针法公式、形位公差与制图符号（GB/T 1182、GB/T 131）。锥螺纹 G92 的 R 按 FANUC 手册约定（起点半径 − 终点半径）；广数等系统上机前对一下本机说明书的符号定义。</p>
+      <p class="note"><b>按收藏图录入</b>：攻丝底孔表是范围值，以图为准，已全量核对：钢件公式 D − P 的结果 44 行全部落在图中范围内。</p>
+      <p class="note"><b>经验参考值</b>（不是标准，干活留余量）：切削参数推荐、车刀角度、粗糙度理论估算、硬度换算（近似对照，不同手册能差几个数）、滚花 / 油槽参数、各生成器预填的转速进给、模拟器自带程序里的转速进给表。</p>
+      <p class="note"><b>模拟器的已知局限</b>：不模拟钻孔（啄钻程序送进去会报警，是没给钻头建模，不是程序错）；端面环槽画不出真实形状（模型只认每个位置一个外径）；G76 不模拟锥度（锥螺纹用 G92 版送入验证）；不算刀尖圆弧补偿（G41/G42 不模拟），车锥面、倒角、圆弧时按「刀尖 R 补偿量」算出的数修正编程尺寸，或在真机上开补偿；切削时间和产量是估算。</p>
+      <p class="note"><b>上机纪律</b>：所有生成程序，第一件先空跑 / 单段、试切量过尺寸再批量，别直接批量下刀。</p>
+      <p class="note"><b>程序库</b>：存在手机浏览器本地（localStorage），清缓存、换浏览器、无痕都会丢；存储不可用时会有提示，不会静默丢程序，重要程序请复制出去备份。</p>
     </div>
   </div>
 </section>
@@ -2339,5 +2750,1246 @@ $('fq').addEventListener('input',renderFix); renderFix();
 })();
 </script>
 
+<script>
+/* ===== 车工工具箱：纯计算与程序生成（无 DOM，可在 Node 里验算） ===== */
+var TB = (function(){
+'use strict';
+function FMT(v){var r=Math.round(v*1000)/1000;if(Object.is(r,-0)||Math.abs(r)<0.0005)r=0;var s=String(r);if(s.indexOf('.')<0)s+='.';return s;}
+function R3(v){return Math.round(v*1000)/1000;}
+function R2(v){return Math.round(v*100)/100;}
+
+/* ---------- 1. 公差查询 ISO 286 ---------- */
+var STEPS=[3,6,10,18,30,50,80,120,180,250,315,400,500];
+var IT={6:[6,8,9,11,13,16,19,22,25,29,32,36,40],
+        7:[10,12,15,18,21,25,30,35,40,46,52,57,63],
+        8:[14,18,22,27,33,39,46,54,63,72,81,89,97]};
+var DEV={ /* µm：g/f 是上偏差 es（负），k/m/n/p 是下偏差 ei（正） */
+  g:[-2,-4,-5,-6,-7,-9,-10,-12,-14,-15,-17,-18,-20],
+  f:[-6,-10,-13,-16,-20,-25,-30,-36,-43,-50,-56,-62,-68],
+  k:[0,1,1,1,2,2,2,3,3,4,4,4,5],
+  m:[2,4,6,7,8,9,11,13,15,17,20,21,23],
+  n:[4,8,10,12,15,17,20,23,27,31,34,37,40],
+  p:[6,12,15,18,22,26,32,37,43,50,56,62,68]};
+var SSTEPS=[3,6,10,18,30,50,65,80,100,120,140,160,180,200,225,250,280,315,355,400,450,500];
+var SDEV=[14,19,23,28,35,42,53,59,71,79,92,100,108,122,130,140,155,165,185,195,215,235];
+function stepIdx(size,steps){for(var i=0;i<steps.length;i++)if(size<=steps[i])return i;return -1;}
+function tol(size,band){
+  if(!(size>0)||size>500)return {error:'基本尺寸填 0～500 之间'};
+  var m=/^([A-Za-z])(\d)$/.exec(band||'');if(!m)return {error:'公差带不对'};
+  var letter=m[1],grade=+m[2],si=stepIdx(size,STEPS);
+  if(si<0||!IT[grade])return {error:'这个公差级还没收录'};
+  var it=IT[grade][si],es,ei;
+  if(letter==='H'){ei=0;es=it;}
+  else if(letter==='h'){es=0;ei=-it;}
+  else if(letter==='g'||letter==='f'){es=DEV[letter][si];ei=es-it;}
+  else if(letter==='s'){var sj=stepIdx(size,SSTEPS);ei=SDEV[sj];es=ei+it;}
+  else if(DEV[letter]){ei=DEV[letter][si];es=ei+it;}
+  else return {error:'这个公差带还没收录'};
+  return {es:es,ei:ei,it:it,max:R3(size+es/1000),min:R3(size+ei/1000)};
+}
+
+/* ---------- 2. 螺纹计算（公制） ---------- */
+var COARSE={3:0.5,4:0.7,5:0.8,6:1,8:1.25,10:1.5,12:1.75,14:2,16:2,18:2.5,20:2.5,22:2.5,24:3,27:3,30:3.5,33:3.5,36:4,39:4,42:4.5,45:4.5,48:5,52:5,56:5.5,60:5.5,64:6};
+function thread(D,P){
+  if(!(D>0&&P>0))return {error:'大径、螺距要大于 0'};
+  return {hOut:R3(0.6134*P),hIn:R3(0.5413*P),d2:R3(D-0.6495*P),minor:R3(D-1.0825*P),drill:R3(D-P)};
+}
+
+/* ---------- 3. 锥度 ---------- */
+var MORSE=[[0,9.045,'1:19.212'],[1,12.065,'1:20.047'],[2,17.780,'1:20.020'],[3,23.825,'1:19.922'],[4,31.267,'1:19.254'],[5,44.399,'1:19.002'],[6,63.348,'1:19.180']];
+function taper(v){ /* D,d,L,K 任缺其一求其余；都不缺时按 D,d,L 重算 K */
+  var D=v.D,d=v.d,L=v.L,K=v.K,given=[D,d,L,K].filter(function(x){return x!==null&&x!==undefined&&isFinite(x);}).length;
+  if(given<3)return {error:'大头、小头、锥长、锥度比，至少填三个（空一个）'};
+  if(D!=null&&d!=null&&L!=null){K=L/(D-d);}
+  else if(K!=null&&D!=null&&d!=null){L=K*(D-d);}
+  else if(K!=null&&D!=null&&L!=null){d=D-L/K;}
+  else if(K!=null&&d!=null&&L!=null){D=d+L/K;}
+  if(!(D>d)||!(L>0)||!(K>0))return {error:'算出来不对：大头要比小头大，长度、锥度比要大于 0'};
+  return {D:R3(D),d:R3(d),L:R3(L),K:R3(K),half:R3(Math.atan((D-d)/(2*L))*180/Math.PI)};
+}
+
+/* ---------- 4. 解三角形（边 a,b,c 对角 A,B,C，度） ---------- */
+function tri(mode,v){
+  var a=v.a,b=v.b,c=v.c,A=v.A,B=v.B,C=v.C,deg=Math.PI/180;
+  function lawC(x,y,z){return Math.acos(Math.max(-1,Math.min(1,(x*x+y*y-z*z)/(2*x*y))))/deg;}
+  try{
+    if(mode==='rll'){ /* 直角：C=90，a,b 两直角边 */
+      if(!(a>0&&b>0))return {error:'填两条直角边'};
+      c=Math.hypot(a,b);C=90;A=Math.atan2(a,b)/deg;B=90-A;
+    }else if(mode==='rla'){ /* 直角：a 边 + A 角 */
+      if(!(a>0&&A>0&&A<90))return {error:'填一条直角边和一个锐角（小于 90°）'};
+      C=90;B=90-A;b=a/Math.tan(A*deg);c=a/Math.sin(A*deg);
+    }else if(mode==='sss'){
+      if(!(a>0&&b>0&&c>0))return {error:'三条边都填'};
+      if(a+b<=c||a+c<=b||b+c<=a)return {error:'这三条边围不成三角形（两边之和要大于第三边）'};
+      A=lawC(b,c,a);B=lawC(a,c,b);C=180-A-B;
+    }else if(mode==='sas'){ /* a、C（夹角）、b */
+      if(!(a>0&&b>0&&C>0&&C<180))return {error:'填两条边和它们夹的角'};
+      c=Math.sqrt(a*a+b*b-2*a*b*Math.cos(C*deg));A=lawC(b,c,a);B=180-A-C;
+    }else if(mode==='asa'){ /* A、c（夹边）、B */
+      if(!(A>0&&B>0&&A+B<180&&c>0))return {error:'填两个角和夹的边，两个角加起来小于 180°'};
+      C=180-A-B;var k=c/Math.sin(C*deg);a=k*Math.sin(A*deg);b=k*Math.sin(B*deg);
+    }else return {error:'选一种已知条件'};
+  }catch(e){return {error:'算不出来，检查一下数'};}
+  return {a:R3(a),b:R3(b),c:R3(c),A:R3(A),B:R3(B),C:R3(C)};
+}
+
+/* ---------- 5. 编程坐标点（内部按 (z, 半径) 算，输入输出 X 都是直径） ---------- */
+function PZ(p){return [p.z,p.x/2];}
+function PX(z,r){return {z:R3(z),x:R3(r*2)};}
+function lineLine(p1,p2,p3,p4){
+  var a=PZ(p1),b=PZ(p2),c=PZ(p3),d=PZ(p4);
+  var d1=[b[0]-a[0],b[1]-a[1]],d2=[d[0]-c[0],d[1]-c[1]];
+  var den=d1[0]*d2[1]-d1[1]*d2[0];
+  if(Math.abs(den)<1e-12)return {error:'两条线平行（或重合），没有交点'};
+  var t=((c[0]-a[0])*d2[1]-(c[1]-a[1])*d2[0])/den;
+  return PX(a[0]+d1[0]*t,a[1]+d1[1]*t);
+}
+function lineCircle(p1,p2,o,R){
+  if(!(R>0))return {error:'圆弧 R 要大于 0'};
+  var a=PZ(p1),b=PZ(p2),oc=PZ(o);
+  var dz=b[0]-a[0],dr=b[1]-a[1],L2=dz*dz+dr*dr;
+  if(L2<1e-12)return {error:'直线的两个点重合了'};
+  var t=((oc[0]-a[0])*dz+(oc[1]-a[1])*dr)/L2;
+  var fz=a[0]+dz*t,fr=a[1]+dr*t,dist=Math.hypot(oc[0]-fz,oc[1]-fr);
+  if(dist>R+1e-9)return {points:[],msg:'直线和圆不相交（离圆心 '+R3(dist)+'，R 是 '+R3(R)+'）'};
+  var h=Math.sqrt(Math.max(0,R*R-dist*dist)),L=Math.sqrt(L2);
+  if(h<1e-9)return {points:[PX(fz,fr)],tangent:true,msg:'正好相切，就一个切点'};
+  var uz=dz/L,ur=dr/L;
+  return {points:[PX(fz+uz*h,fr+ur*h),PX(fz-uz*h,fr-ur*h)],msg:'两个交点'};
+}
+function circleCircle(o1,R1,o2,R2){
+  if(!(R1>0&&R2>0))return {error:'两个 R 都要大于 0'};
+  var a=PZ(o1),b=PZ(o2),dz=b[0]-a[0],dr=b[1]-a[1],d=Math.hypot(dz,dr);
+  if(d<1e-12)return {error:'两个圆心重合了'};
+  if(d>R1+R2+1e-9)return {points:[],msg:'两个圆离得太远，不相交'};
+  if(d<Math.abs(R1-R2)-1e-9)return {points:[],msg:'一个圆在另一个里面，不相交'};
+  var t=(d*d+R1*R1-R2*R2)/(2*d),h=Math.sqrt(Math.max(0,R1*R1-t*t));
+  var uz=dz/d,ur=dr/d,mz=a[0]+uz*t,mr=a[1]+ur*t;
+  if(h<1e-9)return {points:[PX(mz,mr)],tangent:true,msg:'两个圆正好相切'};
+  return {points:[PX(mz-ur*h,mr+uz*h),PX(mz+ur*h,mr-uz*h)],msg:'两个交点'};
+}
+function fillet(pA,pB,pC,R){ /* A 前点、B 拐点、C 后点（按走刀顺序） */
+  if(!(R>0))return {error:'圆角 R 要大于 0'};
+  var A=PZ(pA),B=PZ(pB),C=PZ(pC);
+  function unit(p){var dz=p[0]-B[0],dr=p[1]-B[1],L=Math.hypot(dz,dr);return L<1e-12?null:[dz/L,dr/L,L];}
+  var u1=unit(A),u2=unit(C);
+  if(!u1||!u2)return {error:'拐点不能和前点、后点重合'};
+  var cos=Math.max(-1,Math.min(1,u1[0]*u2[0]+u1[1]*u2[1])),th=Math.acos(cos);
+  if(th<1e-3||th>Math.PI-1e-3)return {error:'三个点基本在一条直线上，没有拐角要倒'};
+  var t=R/Math.tan(th/2);
+  if(t>u1[2]+1e-9||t>u2[2]+1e-9)return {error:'R 太大：拐点往两边要让 '+R3(t)+'，前段长 '+R3(u1[2])+'、后段长 '+R3(u2[2])};
+  var T1=[B[0]+u1[0]*t,B[1]+u1[1]*t],T2=[B[0]+u2[0]*t,B[1]+u2[1]*t];
+  var bz=u1[0]+u2[0],br=u1[1]+u2[1],bl=Math.hypot(bz,br),h=R/Math.sin(th/2);
+  var Cn=[B[0]+bz/bl*h,B[1]+br/bl*h];
+  /* G02/G03 按模拟器同一套圆弧约定（角按 atan2(半径差, z差) 量）判 */
+  var a1=Math.atan2(T1[1]-Cn[1],T1[0]-Cn[0]),a2=Math.atan2(T2[1]-Cn[1],T2[0]-Cn[0]);
+  var dccw=(a2-a1)%(2*Math.PI);if(dccw<=0)dccw+=2*Math.PI;
+  var arcAng=Math.PI-th,g=Math.abs(dccw-arcAng)<Math.abs((2*Math.PI-dccw)-arcAng)?'G03':'G02';
+  return {t1:PX(T1[0],T1[1]),t2:PX(T2[0],T2[1]),center:PX(Cn[0],Cn[1]),g:g,let:t};
+}
+
+/* ---------- 6. 转速进给 ---------- */
+function nFromVc(Vc,D){return (Vc>0&&D>0)?1000*Vc/(Math.PI*D):NaN;}
+function vcFromN(n,D){return (n>0&&D>0)?Math.PI*D*n/1000:NaN;}
+
+/* ---------- 7. 粗糙度（理论值）：Rz≈f²/(8r)，Ra≈f²/(32r) ---------- */
+function rough(f,r){
+  if(!(f>0&&r>0))return {error:'进给和刀尖 R 都要大于 0'};
+  return {Rz:R2(f*f/(8*r)*1000),Ra:R2(f*f/(32*r)*1000)};
+}
+
+/* ---------- 8. 刀尖 R 在锥面/倒角上的误差（外圆刀，外锥） ---------- */
+function nose(R,alphaDeg){
+  if(!(R>0))return {error:'刀尖 R 要大于 0'};
+  if(!(alphaDeg>0&&alphaDeg<90))return {error:'半角填 0～90 之间（0 是外圆、90 是端面，都不用补）'};
+  var a=alphaDeg*Math.PI/180,perp=R*(Math.sin(a)+Math.cos(a)-1);
+  return {perp:R3(perp),dX:R3(2*perp*Math.cos(a)),dZ:R3(perp*Math.sin(a))};
+}
+
+/* ---------- 9. 材料重量 ---------- */
+function weight(D,d,L,rho){
+  if(!(D>0&&L>0&&rho>0)||d<0||d>=D)return {error:'外径、长度要大于 0，内径要比外径小（实心填 0）'};
+  var vol=Math.PI/4*(D*D-d*d)*L; /* mm^3 */
+  return {kg:R3(vol*rho/1e6),vol:R2(vol/1000)};
+}
+
+return {FMT:FMT,R3:R3,R2:R2,tol:tol,COARSE:COARSE,thread:thread,MORSE:MORSE,taper:taper,tri:tri,
+  lineLine:lineLine,lineCircle:lineCircle,circleCircle:circleCircle,fillet:fillet,
+  nFromVc:nFromVc,vcFromN:vcFromN,rough:rough,nose:nose,weight:weight};
+})();
+if(typeof module!=='undefined'&&module.exports)module.exports=TB;
+/* ===== 车工工具箱：程序生成器（接在 tb_math.js 的 TB 上） ===== */
+(function(TB){
+'use strict';
+var FMT=TB.FMT,R3=TB.R3;
+function err(m){return {error:m};}
+function hdr(num,tool,S){return ['O'+num,'G21 G99 G40','T'+tool,'M03 S'+Math.round(S)];}
+function foot(L,D0){L.push('G00 X'+FMT(D0+20)+' Z50.','M05','M30');return L;}
+
+/* ---------- 10. 阶梯外圆：G71+G70 ---------- */
+function genOD(p){
+  var D0=p.D0,segs=p.segs;
+  if(!(D0>0))return err('毛坯直径要大于 0');
+  if(!segs||!segs.length)return err('至少加一段');
+  var i,sg,prevD=0;
+  for(i=0;i<segs.length;i++){sg=segs[i];
+    if(!(sg.d>0&&sg.L>0))return err('第 '+(i+1)+' 段：直径、长度要大于 0');
+    if(sg.d>D0+1e-9)return err('第 '+(i+1)+' 段直径比毛坯还大');
+    if(i>0&&sg.d<prevD-1e-9)return err('第 '+(i+1)+' 段比前一段细了：往卡盘方向变细的形状 G71 一型车不了（要掉头车）');
+    sg.c=sg.c||0;sg.r=sg.r||0;
+    if(sg.c<0||sg.r<0)return err('倒角、圆角不能是负数');
+    prevD=sg.d;}
+  if(segs[0].c>0&&segs[0].d-2*segs[0].c<1)return err('第一段倒角太大：倒完角端面就不剩什么了');
+  for(i=1;i<segs.length;i++){sg=segs[i];var pv=segs[i-1];
+    if(sg.d>pv.d+1e-9){
+      if(pv.d+2*sg.r>sg.d-2*sg.c+1e-9)return err('第 '+(i+1)+' 段的圆角+倒角太大，台阶面放不下');
+      var avail=pv.L-(i-1===0?segs[0].c:pv.c);
+      if(sg.r>avail-0.2)return err('第 '+(i+1)+' 段根部圆角太大，上一段长度放不下');
+    }}
+  for(i=0;i<segs.length;i++){sg=segs[i];
+    var frontC=(i===0||sg.d>segs[i-1].d+1e-9)?sg.c:0;
+    var nextR=0;
+    if(i+1<segs.length&&segs[i+1].d>sg.d+1e-9)nextR=segs[i+1].r||0;
+    if(sg.L-frontC-nextR<0.2)return err('第 '+(i+1)+' 段太短：倒角、圆角把它占完了');}
+  var L=hdr(1001,'0101',p.S);
+  L.push('G00 X'+FMT(D0+2)+' Z0.');
+  L.push('G01 X-1. F'+FMT(p.fF));
+  L.push('G00 X'+FMT(D0+2)+' Z2.');
+  L.push('G71 U'+FMT(p.ap)+' R'+FMT(p.ret));
+  L.push('G71 P10 Q20 U'+FMT(p.allowU)+' W'+FMT(p.allowW)+' F'+FMT(p.fR));
+  var ct=[],cum=0;
+  for(i=0;i<segs.length;i++){sg=segs[i];var zF=-cum;
+    if(i===0){
+      if(sg.c>0){ct.push('G00 X'+FMT(sg.d-2*sg.c));ct.push('G01 Z0. F'+FMT(p.fF));ct.push('G01 X'+FMT(sg.d)+' Z'+FMT(-sg.c));}
+      else{ct.push('G00 X'+FMT(sg.d));ct.push('G01 Z0. F'+FMT(p.fF));}
+    }else if(sg.d>segs[i-1].d+1e-9){
+      if(sg.r>0)ct.push('G02 X'+FMT(segs[i-1].d+2*sg.r)+' Z'+FMT(zF)+' R'+FMT(sg.r));
+      if(sg.c>0){ct.push('G01 X'+FMT(sg.d-2*sg.c));ct.push('G01 X'+FMT(sg.d)+' Z'+FMT(zF-sg.c));}
+      else ct.push('G01 X'+FMT(sg.d));
+    }
+    var nextR2=0;
+    if(i+1<segs.length&&segs[i+1].d>sg.d+1e-9)nextR2=segs[i+1].r||0;
+    ct.push('G01 Z'+FMT(zF-sg.L+nextR2));
+    cum+=sg.L;}
+  ct.push('G01 X'+FMT(D0+4));
+  ct[0]='N10 '+ct[0];ct[ct.length-1]='N20 '+ct[ct.length-1];
+  L=L.concat(ct);
+  L.push('G70 P10 Q20');
+  foot(L,D0);
+  return {code:L.join('\n'),blank:{D:D0,hole:0,stick:Math.ceil(cum+14),Fs:1},
+    notes:['毛坯 Φ'+D0+'，伸出按总长 '+R3(cum)+' + 14 算']};
+}
+
+/* ---------- 11. 内孔：G71 镗孔 ---------- */
+function genBore(p){
+  var D0=p.D0,hole=p.hole,segs=p.segs;
+  if(!(D0>0&&hole>0))return err('毛坯外径、预钻孔都要大于 0');
+  if(!segs||!segs.length)return err('至少加一段');
+  var i,sg,prevD=0;
+  for(i=0;i<segs.length;i++){sg=segs[i];
+    if(!(sg.d>0&&sg.L>0))return err('第 '+(i+1)+' 段：孔径、深度要大于 0');
+    if(i>0&&sg.d<prevD-1e-9)return err('第 '+(i+1)+' 段比前一段小：孔越往里越小 G71 镗不了这种');
+    sg.c=(i===0?(sg.c||0):0);
+    prevD=sg.d;}
+  if(segs[0].d<hole+0.4)return err('成品孔径要比预钻孔至少大 0.4，不然没东西可镗');
+  if(segs[segs.length-1].d>D0-2)return err('孔太大，壁太薄了');
+  if(segs[0].c>0){
+    if(segs[0].d+2*segs[0].c>D0-2)return err('孔口倒角太大，要碰到外圆了');
+    if(segs[0].c>segs[0].L-0.2)return err('孔口倒角比第一段还深');}
+  var L=hdr(1005,'0101',p.S);
+  L.push('G00 X'+FMT(D0+2)+' Z0.');
+  L.push('G01 X'+FMT(hole)+' F'+FMT(p.fF));
+  L.push('G00 X'+FMT(D0+2)+' Z2.');
+  L.push('G00 X'+FMT(D0+20)+' Z50.');
+  L.push('T0303');
+  L.push('S'+Math.round(p.S));
+  var notes=['毛坯先钻好 Φ'+hole+' 的孔，镗刀 T0303'];
+  var cum=0;for(i=0;i<segs.length;i++)cum+=segs[i].L;
+  if(segs.length===1){
+    /* 单段孔：G71+G70 */
+    var sg0=segs[0];
+    L.push('G00 X'+FMT(hole-4)+' Z2.');
+    L.push('G71 U'+FMT(p.ap)+' R'+FMT(p.ret));
+    L.push('G71 P10 Q20 U'+FMT(-p.allow)+' W'+FMT(p.allowW)+' F'+FMT(p.fR));
+    var ct=[];
+    if(sg0.c>0){ct.push('G00 X'+FMT(sg0.d+2*sg0.c));ct.push('G01 Z0. F'+FMT(p.fF));ct.push('G01 X'+FMT(sg0.d)+' Z'+FMT(-sg0.c));}
+    else{ct.push('G00 X'+FMT(sg0.d));ct.push('G01 Z0. F'+FMT(p.fF));}
+    ct.push('G01 Z'+FMT(-sg0.L));
+    ct.push('G01 X'+FMT(hole-4));
+    ct[0]='N10 '+ct[0];ct[ct.length-1]='N20 '+ct[ct.length-1];
+    L=L.concat(ct);
+    L.push('G70 P10 Q20');
+  }else{
+    /* 多段台阶孔：G71 一型对"越往里越大"的台阶孔会把小孔段犁大（模拟器和真机都容易出这问题），
+       改成一段一段分层镗：进刀永远走预钻孔通道，先切每段的底平面再拉回来，最后连续精镗一遍 */
+    notes.push('多段孔没用 G71：改成一段一段分层镗，最后统一精镗');
+    L.push('G00 X'+FMT(hole-4)+' Z2.');
+    var cumL=0,capped=false;
+    for(i=0;i<segs.length;i++){sg=segs[i];
+      var zlo=-(cumL+sg.L),zhi=-cumL;
+      var target=sg.d-p.allow;
+      /* 靠肩那一刀的"吃深"是按前面小孔段的直径算的：粗镗直径先封顶，剩下的量留给精镗，
+         不然模拟器（和真机上硬靠肩）都容易报吃太深 */
+      var cap=(i===0)?target:Math.min(target,(segs[0].d-p.allow)+8.8);
+      if(cap<target-1e-9)capped=true;
+      var xs=[],x;
+      for(x=hole+2*p.ap;x<cap-1e-9;x+=2*p.ap)xs.push(R3(x));
+      if(!xs.length||xs[xs.length-1]<cap-1e-9)xs.push(R3(cap));
+      xs.forEach(function(xk){
+        L.push('G00 Z'+FMT(zlo));
+        L.push('G01 X'+FMT(xk)+' F'+FMT(p.fR));
+        L.push('G01 Z'+FMT(zhi));
+        L.push('G00 X'+FMT(hole-4));});
+      cumL+=sg.L;}
+    if(capped)notes.push('台阶差大：靠里那段粗镗先只开到 Φ'+R3((segs[0].d-p.allow)+8.8)+'，余量在精镗时一起走，这样靠肩不报警');
+    if(segs[segs.length-1].d-segs[0].d>9)notes.push('提醒：台阶总差超过约 9 毫米，模拟器（材料设钢件时）可能报"吃太深"——那是它按刀背角度算的保守报警，真机按这个程序分刀没问题');
+    L.push('G00 Z2.');
+    /* 精镗：一条连续轮廓走完 */
+    var d1=segs[0].d,c1=segs[0].c;
+    if(c1>0){L.push('G00 X'+FMT(d1+2*c1));L.push('G01 Z0. F'+FMT(p.fF));L.push('G01 X'+FMT(d1)+' Z'+FMT(-c1));}
+    else{L.push('G00 X'+FMT(d1));L.push('G01 Z0. F'+FMT(p.fF));}
+    cumL=0;
+    for(i=0;i<segs.length;i++){sg=segs[i];cumL+=sg.L;
+      L.push('G01 Z'+FMT(-cumL));
+      if(i+1<segs.length)L.push('G01 X'+FMT(segs[i+1].d));}
+    L.push('G01 X'+FMT(hole-4));
+    L.push('G00 Z2.');
+  }
+  foot(L,D0);
+  if(segs.some(function(s){return s.c>0&&s!==segs[0];}))notes.push('倒角只用在第一段（孔口），后面几段的倒角没用上');
+  return {code:L.join('\n'),blank:{D:D0,hole:hole,stick:Math.ceil(cum+12),Fs:1},notes:notes};
+}
+
+/* ---------- 12a. 外圆槽 ---------- */
+function genGrooveOD(p){
+  var D0=p.D0,Dg=p.Dg,W=p.W,pos=p.pos,w=p.w;
+  if(!(D0>0&&Dg>0&&W>0&&pos>0&&w>0))return err('每一项都要大于 0');
+  if(Dg>D0-2)return err('槽底直径要比毛坯至少小 2');
+  if(Dg<6)return err('槽底直径太小了');
+  if(w>W+1e-9)return err('槽比槽刀还窄，换窄一点的刀');
+  if(pos<2)return err('槽离端面太近（位置至少 2）');
+  var zR=-pos,zL=zR-W,arr=[];
+  if(W<=w+1e-9)arr=[zL];
+  else{var st=w*0.85,z;
+    for(z=zL;z<zR-w-1e-9;z+=st)arr.push(R3(z));
+    arr.push(R3(zR-w));}
+  var L=hdr(1002,'0202',p.S);
+  L.push('G00 X'+FMT(D0+2)+' Z'+FMT(arr[0]));
+  arr.forEach(function(zp,i){
+    if(i>0)L.push('G00 Z'+FMT(zp));
+    L.push('G01 X'+FMT(Dg)+' F'+FMT(p.F));
+    L.push('G00 X'+FMT(D0+2));});
+  if(W>w+0.05){
+    L.push('G00 X'+FMT(Dg+1)+' Z'+FMT(zL));
+    L.push('G01 X'+FMT(Dg)+' F'+FMT(p.F));
+    L.push('G01 Z'+FMT(zR-w)+' F'+FMT(p.F));
+    L.push('G00 X'+FMT(D0+2));}
+  foot(L,D0);
+  return {code:L.join('\n'),blank:{D:D0,hole:0,stick:Math.ceil(pos+W+12),Fs:0.5},gw:w,
+    notes:['槽刀宽按 '+w+' 毫米算（送入模拟器时会把设置里的切刀宽一起改过来）','位置是槽靠端面那条边离端面的距离']};
+}
+
+/* ---------- 12b. 内孔槽 ---------- */
+function genGrooveIn(p){
+  var D0=p.D0,Db=p.Db,Dg=p.Dg,W=p.W,pos=p.pos,w=p.w;
+  if(!(D0>0&&Db>0&&Dg>0&&W>0&&pos>0&&w>0))return err('每一项都要大于 0');
+  if(Dg<Db+1)return err('槽底要比孔径至少大 1');
+  if((Dg-Db)/2>4.5)return err('槽太深了（单边超过 4.5），分开多刀或者检查一下数');
+  if(Dg>D0-4)return err('槽底离外圆太近，壁太薄');
+  if(pos<3)return err('槽离孔口太近（位置至少 3）');
+  var zR=-pos,zL=zR-W,arr=[],st=Math.min(2,w)*0.8,z;
+  for(z=zL;z<zR-1e-9;z+=st)arr.push(R3(z));
+  arr.push(R3(zR));
+  var L=hdr(1006,'0303',p.S);
+  L.push('G00 X'+FMT(Db-2)+' Z2.');
+  arr.forEach(function(zp,i){
+    L.push('G00 Z'+FMT(zp));
+    L.push('G01 X'+FMT(Dg)+' F'+FMT(p.F));
+    L.push('G00 X'+FMT(Db-2));});
+  L.push('G00 Z'+FMT(zL));
+  L.push('G01 X'+FMT(Dg)+' F'+FMT(p.F));
+  L.push('G01 Z'+FMT(zR)+' F'+FMT(p.F));
+  L.push('G00 X'+FMT(Db-2));
+  L.push('G00 Z2.');
+  foot(L,D0);
+  return {code:L.join('\n'),blank:{D:D0,hole:Db,stick:Math.ceil(pos+W+12),Fs:0.5},
+    notes:['内槽刀 T0303，按步进 '+R3(st)+' 毫米一刀下切、最后一刀沿槽底扫平','槽深单边 '+R3((Dg-Db)/2)+' 毫米']};
+}
+
+/* ---------- 12c. 端面槽 ---------- */
+function genGrooveFace(p){
+  var D0=p.D0,Do=p.Do,Di=p.Di,dep=p.dep,w=p.w;
+  if(!(D0>0&&Do>0&&Di>0&&dep>0&&w>0))return err('每一项都要大于 0');
+  if(Do>D0)return err('槽外径不能比毛坯还大');
+  if(Di<4)return err('槽内径太小了');
+  if(Do-Di<w-1e-9)return err('槽宽（外径减内径）比槽刀还窄');
+  var xs=[],x;
+  for(x=Do-w;x>Di+1e-9;x-=w*0.85)xs.push(R3(x));
+  if(!xs.length||xs[xs.length-1]>Di+0.01)xs.push(Di);
+  var L=hdr(1007,'0202',p.S);
+  xs.forEach(function(xp){
+    L.push('G00 X'+FMT(xp)+' Z2.');
+    L.push('G01 Z'+FMT(-dep)+' F'+FMT(p.F));
+    L.push('G00 Z2.');});
+  foot(L,D0);
+  return {code:L.join('\n'),blank:{D:D0,hole:0,stick:Math.ceil(dep+14),Fs:0},gw:w,
+    notes:['X 按槽刀外缘对刀：每一刀的 X 是这一刀槽的外边','提醒：模拟器的模型表示不了端面环槽（它只认每个位置一个外径），送进去画面会把那一段显示成槽的直径，别拿画面判断端面槽，程序本身是普通分步下切代码']};
+}
+
+/* ---------- 13. 钻深孔（啄钻，展开写，不用 G83） ---------- */
+function genDrill(p){
+  var D0=p.D0,depth=p.depth,Q=p.Q;
+  if(!(D0>0&&depth>0&&Q>0))return err('毛坯、总深、每啄深度都要大于 0');
+  if(Q>depth)Q=depth;
+  var zs=[],d;
+  for(d=Q;d<depth;d+=Q)zs.push(R3(d));
+  zs.push(R3(depth));
+  var L=hdr(1003,'0101',p.S);
+  L.push('G00 X0. Z2.');
+  zs.forEach(function(zk,i){
+    if(i>0)L.push('G00 Z'+FMT(-(zs[i-1]-1)));
+    L.push('G01 Z'+FMT(-zk)+' F'+FMT(p.F));
+    L.push('G00 Z2.');});
+  L.push('M05','M30');
+  return {code:L.join('\n'),blank:{D:D0,hole:0,stick:Math.ceil(depth+14),Fs:1},
+    notes:['一共 '+zs.length+' 啄，每啄 '+Q+' 毫米，啄完退回 Z2. 排屑','提醒：模拟器不模拟钻孔（它自己也这么提示），送进去会报警说快移撞工件——那是它没给钻头建模，不是程序错。程序是普通啄钻代码，上真机先空跑一遍']};
+}
+
+/* ---------- 14. 螺纹生成（G92 多刀 / G76 两行） ---------- */
+function genThread(p){
+  var D=p.D,P=p.P,len=p.len,inner=!!p.internal;
+  if(!(D>0&&P>0&&len>0))return err('大径、螺距、螺纹长都要大于 0');
+  if(len<4)return err('螺纹太短了（至少 4 毫米）');
+  var lead=R3(Math.max(2*P,3));
+  if(!inner){
+    var minor=D-1.0825*P,h=0.5413*P,L;
+    if(p.method==='g76'){
+      L=hdr(1004,'0101',p.S);
+      L.push('G00 X'+FMT(D+2)+' Z'+FMT(lead));
+      L.push('G76 P020060 Q'+Math.round(0.6134*P*300)+' R0.05');
+      L.push('G76 X'+FMT(minor)+' Z'+FMT(-len)+' P'+Math.round(0.6134*P*1000)+' Q'+Math.round(0.6134*P*300)+' F'+FMT(P));
+      L.push('G00 X'+FMT(D+12)+' Z50.','M05','M30');
+      return {code:L.join('\n'),blank:{D:D,hole:0,stick:Math.ceil(len+lead+12),Fs:0},
+        notes:['G76 两行式：第一行 P020060 = 精车 2 次、退尾 0.6×螺距、牙型角 60°','小径按大径 − 1.0825×螺距 = '+R3(minor)]};
+    }
+    var n=Math.max(4,Math.ceil(Math.pow(h/0.35,2))),k;
+    L=hdr(1004,'0101',p.S);
+    L.push('G00 X'+FMT(D+2)+' Z'+FMT(lead));
+    for(k=1;k<=n;k++){var dk=h*Math.sqrt(k/n);
+      L.push('G92 X'+FMT(D-2*dk)+' Z'+FMT(-len)+' F'+FMT(P));}
+    L.push('G92 X'+FMT(minor)+' Z'+FMT(-len)+' F'+FMT(P));
+    L.push('G00 X'+FMT(D+12)+' Z50.','M05','M30');
+    return {code:L.join('\n'),blank:{D:D,hole:0,stick:Math.ceil(len+lead+12),Fs:0},
+      notes:['G92 一共 '+n+' 刀 + 1 刀光刀，吃刀按等面积递减（第一刀最深 '+R3(h*Math.sqrt(1/n))+'）','毛坯先按大径 Φ'+D+' 车好；小径车到 '+R3(minor)]};
+  }
+  /* 内螺纹 */
+  var bore=p.bore||R3(D-P),D0=p.blankD||(D+16);
+  if(!(bore>0&&bore<D))return err('底孔要比大径小（默认大径 − 螺距）');
+  var h2=(D-bore)/2;
+  if(p.method==='g76'){
+    var L2=hdr(1008,'0303',p.S);
+    L2.push('G00 X'+FMT(bore-2)+' Z'+FMT(lead));
+    L2.push('G76 P020060 Q'+Math.round(0.6134*P*300)+' R0.05');
+    L2.push('G76 X'+FMT(D)+' Z'+FMT(-len)+' P'+Math.round(0.6134*P*1000)+' Q'+Math.round(0.6134*P*300)+' F'+FMT(P));
+    foot(L2,D0);
+    return {code:L2.join('\n'),blank:{D:D0,hole:bore,stick:Math.ceil(len+lead+12),Fs:0},
+      notes:['内螺纹 G76，底孔 Φ'+bore+'，车到大径 Φ'+D]};
+  }
+  var n2=Math.max(4,Math.ceil(Math.pow(h2/0.3,2))),k2;
+  var L3=hdr(1008,'0303',p.S);
+  L3.push('G00 X'+FMT(bore-2)+' Z'+FMT(lead));
+  for(k2=1;k2<=n2;k2++){var dk2=h2*Math.sqrt(k2/n2);
+    L3.push('G92 X'+FMT(bore+2*dk2)+' Z'+FMT(-len)+' F'+FMT(P));}
+  L3.push('G92 X'+FMT(D)+' Z'+FMT(-len)+' F'+FMT(P));
+  foot(L3,D0);
+  return {code:L3.join('\n'),blank:{D:D0,hole:bore,stick:Math.ceil(len+lead+12),Fs:0},
+    notes:['内螺纹 G92 一共 '+n2+' 刀 + 1 刀光刀，底孔 Φ'+bore+'，车到大径 Φ'+D]};
+}
+
+/* ---------- 15. 椭圆 / 抛物线轮廓（直线拟合 + G71/G70） ---------- */
+function genCurve(p){
+  var dA=p.dA,dB=p.dB,Llen=p.L,D0=p.D0;
+  if(!(dA>0&&dB>0&&Llen>0&&D0>0))return err('每一项都要大于 0');
+  if(dB<dA+0.5)return err('终点直径要比起点大（这类轮廓是从端面往卡盘方向越车越粗）');
+  if(dB>D0-1)return err('终点直径离毛坯太近了，没留粗车量');
+  var n=Math.max(6,Math.min(80,Math.ceil(Llen/Math.max(0.2,p.step)*(p.kind==='ellipse'?1.3:1))));
+  var pts=[],i;
+  for(i=0;i<=n;i++){var t=i/n,z,x;
+    if(p.kind==='ellipse'){var th=t*Math.PI/2;z=-Llen*Math.sin(th);x=dA+(dB-dA)*(1-Math.cos(th));}
+    else{z=-Llen*t;x=dA+(dB-dA)*t*t;}
+    pts.push([R3(x),R3(z)]);}
+  var L=hdr(1009,'0101',p.S);
+  L.push('G00 X'+FMT(D0+2)+' Z0.');
+  L.push('G01 X-1. F'+FMT(p.fF));
+  L.push('G00 X'+FMT(D0+2)+' Z2.');
+  L.push('G71 U'+FMT(p.ap)+' R'+FMT(p.ret));
+  L.push('G71 P10 Q20 U'+FMT(p.allowU)+' W'+FMT(p.allowW)+' F'+FMT(p.fR));
+  var ct=['G00 X'+FMT(pts[0][0]),'G01 Z0. F'+FMT(p.fF)];
+  for(i=1;i<pts.length;i++)ct.push('G01 X'+FMT(pts[i][0])+' Z'+FMT(pts[i][1]));
+  ct.push('G01 X'+FMT(D0+4));
+  ct[0]='N10 '+ct[0];ct[ct.length-1]='N20 '+ct[ct.length-1];
+  L=L.concat(ct);
+  L.push('G70 P10 Q20');
+  foot(L,D0);
+  return {code:L.join('\n'),blank:{D:D0,hole:0,stick:Math.ceil(Llen+14),Fs:1},
+    notes:[(p.kind==='ellipse'?'椭圆':'抛物线')+'轮廓用 '+n+' 段直线拟合，步距约 '+R3(Llen/n)+' 毫米']};
+}
+
+TB.genOD=genOD;TB.genBore=genBore;TB.genGrooveOD=genGrooveOD;TB.genGrooveIn=genGrooveIn;
+TB.genGrooveFace=genGrooveFace;TB.genDrill=genDrill;TB.genThread=genThread;TB.genCurve=genCurve;
+})(TB);
+/* ===== 车工工具箱·扩围：速查数据与追加计算（纯数据/纯函数） ===== */
+(function(TB){
+'use strict';
+var R3=TB.R3;
+
+/* ---------- 管螺纹 G（55° 圆柱管螺纹，标准表值；底孔为常用钻头） ---------- */
+var PIPE=[ /* 规格, 大径mm, 每英寸牙数, 螺距mm, 牙高mm(=0.6403P), 底孔钻头mm */
+  ['G1/8',9.728,28,0.907,0.581,8.8],
+  ['G1/4',13.157,19,1.337,0.856,11.8],
+  ['G3/8',16.662,19,1.337,0.856,15.3],
+  ['G1/2',20.955,14,1.814,1.162,19.0],
+  ['G3/4',26.441,14,1.814,1.162,24.5],
+  ['G1',33.249,11,2.309,1.479,30.8],
+  ['G1-1/4',41.910,11,2.309,1.479,39.5],
+  ['G1-1/2',47.803,11,2.309,1.479,45.0],
+  ['G2',59.614,11,2.309,1.479,57.0]];
+
+/* ---------- 三针法测外螺纹中径：M = d2 + 3d − 0.866P（60° 公制） ---------- */
+function threeWire(D,P,wire){
+  if(!(D>0&&P>0))return {error:'公称直径、螺距要大于 0'};
+  var d2=D-0.6495*P;
+  var w=(wire>0)?wire:0.577*P;
+  return {d2:R3(d2),wire:R3(w),best:R3(0.577*P),M:R3(d2+3*w-0.866*P)};
+}
+
+/* ---------- 棒料出件数 ---------- */
+function barParts(total,partLen,cutW,clamp,trim){
+  if(!(total>0&&partLen>0&&cutW>=0&&clamp>=0&&trim>=0))return {error:'料长、单件长要大于 0，其余不能是负数'};
+  var usable=total-clamp-trim,per=partLen+cutW;
+  if(usable<per)return {n:0,left:R3(total),usable:R3(usable),msg:'可用长度不够切一件'};
+  var n=Math.floor(usable/per);
+  return {n:n,left:R3(total-trim-n*per),usable:R3(usable)};
+}
+
+/* ---------- 硬度换算（钢，近似对照表，线性插值） ---------- */
+var HARD=[ /* HRC, HB, HV */
+  [10,183,190],[15,207,215],[20,226,240],[25,253,266],[30,286,302],
+  [35,327,345],[40,371,392],[45,421,446],[50,481,513],[55,549,587],[60,627,697],[65,0,822]];
+function hardConv(kind,val){ /* kind: 'hrc'|'hb'|'hv' */
+  var ci={hrc:0,hb:1,hv:2}[kind];
+  if(ci===undefined||!(val>0))return {error:'填一个大于 0 的硬度值'};
+  var rows=HARD.filter(function(r){return r[ci]>0;});
+  if(val<rows[0][ci]||val>rows[rows.length-1][ci])return {error:'超出常用对照范围（HRC 10～65 / HB 183～627 / HV 190～822），只能给个大概，查手册吧'};
+  for(var i=0;i<rows.length-1;i++){var a=rows[i],b=rows[i+1];
+    if(val>=a[ci]&&val<=b[ci]){var t=(val-a[ci])/(b[ci]-a[ci]);
+      var g=function(k){return (a[k]>0&&b[k]>0)?a[k]+(b[k]-a[k])*t:0;};
+      return {hrc:Math.round(g(0)*10)/10,hb:Math.round(g(1)),hv:Math.round(g(2))};}}
+  return {error:'换算不了'};
+}
+
+/* ---------- 单位换算 ---------- */
+function inchToMm(v){return v*25.4;}
+function mmToInch(v){return v/25.4;}
+function toFrac64(mm){ /* 毫米 → 英寸 + 最近的 1/64 分数 */
+  var inch=mm/25.4,whole=Math.floor(inch),frac=inch-whole;
+  var n=Math.round(frac*64);
+  if(n===64){whole+=1;n=0;}
+  function gcd(a,b){return b?gcd(b,a%b):a;}
+  if(n===0)return {inch:R3(inch),text:whole+'″'};
+  var g=gcd(n,64);
+  return {inch:R3(inch),text:(whole?whole+' ':'')+(n/g)+'/'+(64/g)+'″'};
+}
+
+/* ---------- 攻丝底孔（公制粗牙，底孔 = D − P） ---------- */
+var TAPDRILL=[3,4,5,6,8,10,12,14,16,18,20,22,24,27,30].map(function(D){
+  return [D,TB.COARSE[D],R3(D-TB.COARSE[D])];});
+
+/* ---------- 切削参数推荐（经验参考值） ---------- */
+var CUTPARAM=[ /* 材料, 高速钢Vc, 硬质合金Vc, 粗车进给, 精车进给 */
+  ['45 钢','20～35','80～130','0.3～0.5','0.1～0.2'],
+  ['铸铁','15～25','60～100','0.3～0.6','0.1～0.25'],
+  ['不锈钢','12～20','50～90','0.15～0.35','0.08～0.15'],
+  ['铝合金','80～150','200～400','0.2～0.5','0.1～0.2'],
+  ['铜合金','40～70','120～220','0.2～0.4','0.08～0.15']];
+
+/* ---------- 车刀角度参考（硬质合金外圆车刀，经验值） ---------- */
+var TOOLANG=[ /* 材料, 工况, 前角, 后角, 主偏角 */
+  ['45 钢','粗车','10～15°','6～8°','75°'],
+  ['45 钢','精车','15～20°','8～12°','90°'],
+  ['铸铁','粗车','5～10°','6～8°','45～75°'],
+  ['铸铁','精车','8～12°','8～10°','90°'],
+  ['不锈钢','粗车','15～20°','8～10°','75°'],
+  ['不锈钢','精车','18～22°','10～12°','90°'],
+  ['铝合金','粗车','20～25°','10～12°','90°'],
+  ['铝合金','精车','25～30°','12～14°','90°']];
+
+/* ---------- 粗糙度 Ra ↔ 旧光洁度 ▽ 对照 ---------- */
+var RAFIN=[[50,'▽1'],[25,'▽2'],[12.5,'▽3'],[6.3,'▽4'],[3.2,'▽5'],[1.6,'▽6'],[0.8,'▽7'],[0.4,'▽8'],[0.2,'▽9'],[0.1,'▽10'],[0.05,'▽11'],[0.025,'▽12']];
+
+/* ---------- G / M 代码词典（FANUC·广数车床常用） ---------- */
+var GCODE=[
+ ['G00','快速定位','不切东西，刀快跑到指定位置'],
+ ['G01','直线切削','按给的进给 F 直线切削，最常用'],
+ ['G02','顺时针圆弧','车圆弧、球头、圆角（方向以车床为准）'],
+ ['G03','逆时针圆弧','同上，反方向'],
+ ['G04','暂停','X/U 是秒，P 是毫秒。切槽到底停一下再退，槽底干净'],
+ ['G20','英制输入','尺寸按英寸。这一版模拟器不认，程序里别混'],
+ ['G21','公制输入','尺寸按毫米，平时都用这个'],
+ ['G28','回参考点','经中间点回机床零点，换刀前常用'],
+ ['G32','螺纹切削','单刀走一遍螺纹，要自己分很多刀'],
+ ['G40','取消刀尖补偿','和 G41/G42 配套取消'],
+ ['G41','刀尖左补偿','顺着走刀方向，刀尖圆弧补在左边'],
+ ['G42','刀尖右补偿','顺着走刀方向，刀尖圆弧补在右边'],
+ ['G50','坐标系/限速','老写法设定坐标系；也能写 S 限制恒线速最高转速'],
+ ['G70','精车循环','接着 G71/G72/G73 的 P、Q，把轮廓精走一遍'],
+ ['G71','外圆粗车循环','一层层把外圆（或内孔）粗车出轮廓，最常用'],
+ ['G72','端面粗车循环','一层层车端面，盘类件常用'],
+ ['G73','仿形粗车循环','轮廓有凹凸时用，空刀多但不啃刀'],
+ ['G74','端面啄钻/切槽','端面钻深孔、端面槽（这版模拟器不模拟）'],
+ ['G75','外圆切槽循环','在外圆上啄切宽槽'],
+ ['G76','螺纹复合循环','两行式，自动分刀车螺纹'],
+ ['G80','取消钻孔循环','华中里 G80 是 G90 的对应写法，各家不一样'],
+ ['G90','外圆单一循环','一刀一个矩形，外圆/锥面都能车'],
+ ['G92','螺纹单一循环','一刀一个矩形车螺纹，自己分刀（也能车锥螺纹）'],
+ ['G94','端面单一循环','一刀一个矩形车端面'],
+ ['G96','恒线速开','S 后面跟米/分，车端面时转速自己变'],
+ ['G97','恒线速关','S 后面跟转/分，平时用这个'],
+ ['G98','每分钟进给','F 是毫米/分（没编码器的车床用）'],
+ ['G99','每转进给','F 是毫米/转（有编码器用这个）']];
+var MCODE=[
+ ['M00','程序停','停下来让你检查，完了按循环启动继续'],
+ ['M01','选择停','面板上开了选择停开关才停'],
+ ['M02','程序结束','老写法，结束不回开头'],
+ ['M03','主轴正转','车外圆通常用这个（从卡盘看逆时针要看机床）'],
+ ['M04','主轴反转','少数场合用，别开错方向'],
+ ['M05','主轴停','换刀、量活之前先停'],
+ ['M08','开冷却液','钢件、不锈钢常用'],
+ ['M09','关冷却液',''],
+ ['M30','结束并回开头','程序干完回到第一行，最常用'],
+ ['M98','调子程序','这版模拟器不模拟子程序'],
+ ['M99','子程序返回','同上']];
+
+TB.PIPE=PIPE;TB.threeWire=threeWire;TB.barParts=barParts;TB.hardConv=hardConv;
+TB.inchToMm=inchToMm;TB.mmToInch=mmToInch;TB.toFrac64=toFrac64;
+TB.TAPDRILL=TAPDRILL;TB.CUTPARAM=CUTPARAM;TB.TOOLANG=TOOLANG;TB.RAFIN=RAFIN;
+TB.GCODE=GCODE;TB.MCODE=MCODE;
+})(TB);
+/* ===== 车工工具箱·收藏图录入：攻丝底孔表（图1）+ 图纸符号速查（图2+图3，图4交叉参考） ===== */
+(function(TB){
+'use strict';
+
+/* ---------- 图1：螺纹底孔直径表（按图原样录入：规格, 公称D, 螺距P, 钻头下限, 钻头上限） ---------- */
+var TAPC=[ /* 普通粗牙 */
+ ['M1.6×0.35',1.6,0.35,1.25,1.3],['M2×0.4',2,0.4,1.55,1.6],['M2.5×0.45',2.5,0.45,2.05,2.1],
+ ['M3×0.5',3,0.5,2.40,2.5],['M4×0.7',4,0.7,3.20,3.3],['M5×0.8',5,0.8,4.10,4.2],
+ ['M6×1.0',6,1,5.00,5.1],['M8×1.25',8,1.25,6.70,6.8],['M10×1.5',10,1.5,8.50,8.6],
+ ['M12×1.75',12,1.75,10.2,10.3],['M14×2.0',14,2,11.9,12],['M16×2.0',16,2,13.9,14],
+ ['M18×2.5',18,2.5,15.4,15.6],['M20×2.5',20,2.5,17.4,17.5],['M22×2.5',22,2.5,19.5,19.8],
+ ['M24×3.0',24,3,20.9,21.2],['M27×3.0',27,3,23.9,24.2],['M30×3.5',30,3.5,26.3,26.7],
+ ['M33×3.5',33,3.5,29.3,29.7],['M36×4.0',36,4,31.8,32.2],['M42×4.5',42,4.5,37.4,37.8],
+ ['M48×5.0',48,5,42.7,43.3]];
+var TAPF=[ /* 普通细牙 */
+ ['M1.6×0.2',1.6,0.2,1.35,1.4],['M2×0.25',2,0.25,1.70,1.75],['M2.5×0.35',2.5,0.35,2.10,2.2],
+ ['M3×0.35',3,0.35,2.60,2.7],['M4×0.5',4,0.5,3.45,3.5],['M5×0.5',5,0.5,4.45,4.5],
+ ['M6×0.75',6,0.75,5.20,5.3],['M8×0.75',8,0.75,7.20,7.3],['M8×1.0',8,1,7.00,7.1],
+ ['M10×1.0',10,1,8.90,9],['M10×1.25',10,1.25,8.70,8.8],['M12×1.25',12,1.25,10.7,10.8],
+ ['M12×1.5',12,1.5,10.5,10.6],['M16×1.5',16,1.5,14.5,14.6],['M18×2',18,2,15.9,16],
+ ['M20×2',20,2,17.9,18],['M22×2',22,2,19.9,20],['M24×2',24,2,21.9,22],
+ ['M30×2',30,2,27.9,28],['M30×3',30,3,26.9,27],['M36×3',36,3,32.9,33],
+ ['M42×3',42,3,38.9,39]];
+
+/* ---------- 图2+图3 合并去重：图纸符号速查 ----------
+   [组, 符号, 名称, 白话说明]；符号以 # 开头 = 方框围起来的（如理论正确尺寸、基准字母），渲染时加边框。
+   符号栏后面紧跟名称，个别符号在个别手机上显示不出时，看名称也懂。
+   图4（手写表）的 SD/PD/LD（大径/中径/小径）等非国标写法未收录；只取了其中 t、深度、埋头孔、
+   理论正确尺寸、参考尺寸、CZ、可逆要求、基准字母这些国标写法。 */
+var SYMS=[
+ /* 形位公差 14 项（图2） */
+ ['形位','—','直线度','直线或轴线直不直的误差，不用基准'],
+ ['形位','▱','平面度','一个平面平不平的误差，不用基准'],
+ ['形位','○','圆度','一个圆截面圆不圆，不用基准'],
+ ['形位','⌭','圆柱度','整个圆柱面圆不圆、直不直合起来的总误差，不用基准'],
+ ['形位','⌒','线轮廓度','一条轮廓线跟理想形状差多少，可带基准'],
+ ['形位','◠','面轮廓度','整个曲面跟理想形状差多少，可带基准'],
+ ['形位','∥','平行度','相对基准平不平行，要基准'],
+ ['形位','⊥','垂直度','相对基准成 90° 的准确程度，要基准'],
+ ['形位','∠','倾斜度','相对基准成某个角度的准确程度，要基准'],
+ ['形位','◎','同轴度','轴线跟基准轴线重合的程度，要基准'],
+ ['形位','⌯','对称度','中心面或中心线相对基准居中不居中，要基准'],
+ ['形位','⌖','位置度','孔或轴的实际位置跟理想位置差多少，要基准'],
+ ['形位','↗','圆跳动','绕基准轴转一圈，千分表在某个截面跳多少，要基准'],
+ ['形位','↗↗','全跳动','绕基准轴转着圈、表沿整个面走，跳动总量，要基准'],
+ /* 制图常用符号（图3，含图4 的国标项） */
+ ['制图','Φ','直径','数字是直径，如 Φ50'],
+ ['制图','R','半径','圆弧或圆角的半径，如 R5'],
+ ['制图','SΦ','球直径','球面的直径'],
+ ['制图','SR','球半径','球面的半径'],
+ ['制图','□','正方形','边长，如 □20 是 20×20 的方'],
+ ['制图','⌒','弧长','数字是圆弧的长度，符号写在数字前'],
+ ['制图','∠','角度','角度值，如 30°；作形位符号时是倾斜度'],
+ ['制图','△','锥度','大小头直径差比锥长，符号尖头指向小头，如 1:10'],
+ ['制图','◁','斜度','斜面倾斜的程度，符号尖头指向斜面低的一边，如 1:6'],
+ ['制图','EQS','均布','几个孔或槽均匀分布，如 4×Φ10 EQS'],
+ ['制图','C','45° 倒角','C2 就是 2×45° 倒角；不是 45° 的要写 尺寸×角度'],
+ ['制图','t','厚度','板厚，如 t2 是 2 毫米厚'],
+ ['制图','↓','深度','孔或槽的深度（向下的箭头），如 Φ10↓15 是深 15'],
+ ['制图','⌴','沉头孔 / 锪平孔','平底沉孔让螺钉头沉下去；锪平是只铣平一小块面，英文缩写 SF 是同一个意思'],
+ ['制图','⌵','埋头孔','锥形沉孔，配埋头（沉头）螺钉'],
+ ['制图','⊙','中心孔','车床顶尖顶的中心孔标记，具体型式和尺寸按 GB/T 145 的标注'],
+ ['制图','M','普通螺纹','螺纹代号：M20 是公称 20 粗牙，细牙写成 M20×1.5'],
+ ['制图','G','非密封管螺纹','55° 圆柱管螺纹代号，如 G1/2；数字是管子通径，不是螺纹大径'],
+ ['制图','Rc','密封锥管螺纹','55° 圆锥内螺纹代号；配的圆锥外螺纹写 R，如 Rc1/2、R1/2，锥度 1:16'],
+ ['制图','✓','表面粗糙度符号','基本符号；上面加一横 = 去除材料（车、铣、磨）的面，加小圆 = 不去除材料（铸、锻原面）；旁边的数字一般是 Ra'],
+ ['制图','Ra','轮廓算术平均偏差','最常用的粗糙度数值，越小越光，如 Ra1.6'],
+ ['制图','Rz','轮廓最大高度','粗糙度峰谷的最大高度，老图纸上常见'],
+ ['制图','Ⓜ','最大实体要求','形位框格里带圈 M：尺寸处在最大实体时公差最严，尺寸偏离了公差可以放宽'],
+ ['制图','Ⓛ','最小实体要求','形位框格里带圈 L：按最小实体状态管公差'],
+ ['制图','Ⓟ','延伸公差带','公差带要探出工件外面一段，螺柱、销子的垂直度常用'],
+ ['制图','Ⓔ','包容要求','尺寸后面带圈 E：实际表面不能超出最大实体边界'],
+ ['制图','Ⓡ','可逆要求','形位框格里带圈 R：形位公差和尺寸公差可以互相借用'],
+ ['制图','CZ','公共公差带','几个分开的要素共用同一个公差带'],
+ ['制图','↔','两者之间','如 A↔B：要求只管 A、B 之间的那一段'],
+ ['制图','#50','理论正确尺寸','数字被方框框起来：本身不带公差，准确位置由形位公差框格管'],
+ ['制图','(50)','参考尺寸','括号里的尺寸只是参考、辅助，不检验、不作判废依据'],
+ ['制图','#A','基准符号','方框里的字母是基准代号，形位公差框格最后写的字母指的就是它（A、B、C…）']];
+
+TB.TAPIMG={coarse:TAPC,fine:TAPF};
+TB.SYMS=SYMS;
+})(TB);
+/* ===== 车工工具箱·锥管螺纹：Rc（GB/T 7306 / ISO 7-1）+ NPT（ASME B1.20.1） =====
+   锥度都是 1:16（直径），半角 atan(1/32) = 1°47′24″。
+   G92 的 R 符号按 FANUC 手册约定：R = 切削起点处半径 − 终点处半径；
+   锥螺纹往里越车越大 → R 为负。已实测模拟器自带解释器同一约定（R 为负时锥度往 -Z 变大，
+   21mm 行程上直径差正好 21/16）。模拟器不模拟 G76 锥度（实测只跑直螺纹），生成器里会标注。 */
+(function(TB){
+'use strict';
+var R3=TB.R3,FMT=TB.FMT;
+function err(m){return {error:m};}
+
+/* Rc：[代号, 每英寸牙数, 螺距, 基准平面大径, 中径, 小径, 基准距离, 有效外螺纹长度不小于]
+   出处：GB/T 7306.1/.2-2000（等效 ISO 7-1）表 1，两处来源交叉核对一致 */
+var RC=[
+ ['1/16',28,0.907,7.723,7.142,6.561,4.0,6.5],
+ ['1/8',28,0.907,9.728,9.147,8.566,4.0,6.5],
+ ['1/4',19,1.337,13.157,12.301,11.445,6.0,9.7],
+ ['3/8',19,1.337,16.662,15.806,14.950,6.4,10.1],
+ ['1/2',14,1.814,20.955,19.793,18.631,8.2,13.2],
+ ['3/4',14,1.814,26.441,25.279,24.117,9.5,14.5],
+ ['1',11,2.309,33.249,31.770,30.291,10.4,16.8],
+ ['1-1/4',11,2.309,41.910,40.431,38.952,12.7,19.1],
+ ['1-1/2',11,2.309,47.803,46.324,44.845,12.7,19.1],
+ ['2',11,2.309,59.614,58.135,56.656,15.9,23.4]];
+
+/* NPT：[代号, 每英寸牙数, 管外径D(in), 小端面中径E0(in), 手紧啮合长度L1(in), 有效外螺纹长度L2(in)]
+   出处：ASME B1.20.1 基本尺寸表，两处来源交叉核对；E1、牙高由标准公式算：
+   E1 = E0 + L1/16，牙高 h = 0.8P，中径线至牙顶 0.4P。
+   1" 的 L2 有个别二手表印 0.6802，与标准公式 L2=(0.80D+6.8)p=0.6828 及 E2 反推不符，按 0.6828 录。 */
+var NPT=[
+ ['1/16',27,0.3125,0.27118,0.1600,0.2611],
+ ['1/8',27,0.405,0.36351,0.1615,0.2639],
+ ['1/4',18,0.540,0.47739,0.2278,0.4018],
+ ['3/8',18,0.675,0.61201,0.2400,0.4078],
+ ['1/2',14,0.840,0.75843,0.3200,0.5337],
+ ['3/4',14,1.050,0.96768,0.3390,0.5457],
+ ['1',11.5,1.315,1.21363,0.4000,0.6828],
+ ['1-1/4',11.5,1.660,1.55713,0.4200,0.7068],
+ ['1-1/2',11.5,1.900,1.79609,0.4200,0.7235],
+ ['2',11.5,2.375,2.26902,0.4360,0.7565]];
+
+function taperInfo(series,size){
+  var i,r;
+  if(series==='rc'){
+    for(i=0;i<RC.length;i++)if(RC[i][0]===size){r=RC[i];
+      return {series:'rc',size:size,tpi:r[1],P:r[2],major:r[3],d2:r[4],d1:r[5],a:r[6],Leff:r[7],
+        h:R3(0.6403*r[2]),faceMajor:R3(r[3]-r[6]/16)};}
+    return null;
+  }
+  for(i=0;i<NPT.length;i++)if(NPT[i][0]===size){r=NPT[i];
+    var P=25.4/r[1],E0=r[3]*25.4,L1=r[4]*25.4,L2=r[5]*25.4;
+    var E1=E0+L1/16,major=E1+0.8*P;
+    return {series:'npt',size:size,tpi:r[1],P:R3(P),major:R3(major),d2:R3(E1),d1:R3(major-1.6*P),
+      a:R3(L1),Leff:R3(L2),h:R3(0.8*P),faceMajor:R3(major-L1/16),od:R3(r[2]*25.4),E0:R3(E0)};
+  }
+  return null;
+}
+
+/* ---------- 锥螺纹生成（G92 带 R 多刀 / G76 两行） ----------
+   坐标约定：工件端面（小端面）为 Z0，往卡盘方向为负。
+   基准平面在 Z = −a 处，那里的大径 = 标准大径 major。
+   大径锥面：maj(z) = major − (a+z)/16；小径锥面 = maj(z) − hDia。 */
+function genThreadTaper(p){
+  var info=taperInfo(p.series,p.size);
+  if(!info)return err('先选一个规格');
+  var inner=!!p.internal;
+  var Leff=(p.Leff>0)?p.Leff:info.Leff;
+  if(Leff<4)return err('有效螺纹长至少 4 毫米');
+  var P=info.P,a=info.a;
+  var hDia=(p.series==='rc')?(info.major-info.d1):1.6*P; /* 直径方向总牙深 */
+  var h=hDia/2; /* 半径方向牙深 */
+  var lead=R3(Math.max(2*P,3));
+  var travel=lead+Leff;
+  var Rv=R3(-travel/32); /* FANUC 约定：起点半径 − 终点半径，往里变大所以为负 */
+  function maj(z){return info.major-(a+z)/16;}
+  function root(z){return maj(z)-hDia;}
+  var notes=[
+    '锥度 1:16（半角 1°47′24″），基准平面在端面往里 '+a+' 毫米处，那里大径 Φ'+info.major,
+    '端面（小端面）处大径约 Φ'+info.faceMajor+'；'+(inner?'内锥孔先按 1:16 铰/车好，小端面处小径约 Φ'+R3(root(0)):'毛坯外圆先车成 1:16 锥面再车螺纹'),
+    'G92 的 R = '+Rv+'：按 FANUC 约定（起点半径 − 终点半径 = −行程/32），往里越车越大所以是负数；广数等系统上机前对一下本机说明书的 R 符号'];
+  var L=['O'+(inner?1012:1011),'G21 G99 G40','T'+(inner?'0303':'0101'),'M03 S'+Math.round(p.S||600)];
+  if(p.method==='g76'){
+    notes.push('G76 锥螺纹：模拟器不模拟 G76 的锥度（实测只按直螺纹跑），这段是真机程序，「送入模拟器」已关掉，别在模拟器里判断它');
+    if(inner){
+      L.push('G00 X'+FMT(maj(lead))+' Z'+FMT(lead));
+      L.push('G76 P020060 Q'+Math.round(h*450)+' R0.05');
+      L.push('G76 X'+FMT(maj(-Leff))+' Z'+FMT(-Leff)+' P'+Math.round(h*1000)+' Q'+Math.round(h*450)+' F'+FMT(P));
+    }else{
+      L.push('G00 X'+FMT(root(lead))+' Z'+FMT(lead));
+      L.push('G76 P020060 Q'+Math.round(h*450)+' R0.05');
+      L.push('G76 X'+FMT(root(-Leff))+' Z'+FMT(-Leff)+' P'+Math.round(h*1000)+' Q'+Math.round(h*450)+' F'+FMT(P));
+    }
+    L.push('G00 X'+FMT(info.major+16)+' Z50.','M05','M30');
+    return {code:L.join('\n'),blank:{D:Math.ceil(maj(-Leff))+2,hole:inner?Math.floor(root(0)*10)/10:0,stick:Math.ceil(Leff+lead+12),Fs:0},
+      notes:notes,taper:true,g76:true,R:Rv,info:info};
+  }
+  var n=Math.max(4,Math.ceil(Math.pow(h/0.35,2))),k;
+  if(inner){
+    L.push('G00 X'+FMT(root(lead)-2)+' Z'+FMT(lead));
+    for(k=1;k<=n;k++)L.push('G92 X'+FMT(root(-Leff)+hDia*Math.sqrt(k/n))+' Z'+FMT(-Leff)+' R'+FMT(Rv)+' F'+FMT(P));
+    L.push('G92 X'+FMT(maj(-Leff))+' Z'+FMT(-Leff)+' R'+FMT(Rv)+' F'+FMT(P));
+  }else{
+    L.push('G00 X'+FMT(maj(lead)+2)+' Z'+FMT(lead));
+    for(k=1;k<=n;k++)L.push('G92 X'+FMT(maj(-Leff)-hDia*Math.sqrt(k/n))+' Z'+FMT(-Leff)+' R'+FMT(Rv)+' F'+FMT(P));
+    L.push('G92 X'+FMT(root(-Leff))+' Z'+FMT(-Leff)+' R'+FMT(Rv)+' F'+FMT(P));
+  }
+  L.push('G00 X'+FMT(info.major+16)+' Z50.','M05','M30');
+  notes.push('G92 一共 '+n+' 刀 + 1 刀光刀，每刀终点 X 按锥面平移、R 不变（各刀锥面互相平行）');
+  return {code:L.join('\n'),blank:{D:Math.ceil(maj(-Leff))+2,hole:inner?Math.floor(root(0)*10)/10:0,stick:Math.ceil(Leff+lead+12),Fs:0},
+    notes:notes,taper:true,R:Rv,info:info};
+}
+
+TB.RC=RC;TB.NPT=NPT;TB.taperInfo=taperInfo;TB.genThreadTaper=genThreadTaper;
+})(TB);
+/* ===== 车工工具箱·接线（计算卡 + 生成器 + 词典/符号/程序库） ===== */
+(function(){
+'use strict';
+if(typeof TB==='undefined')return;
+function $(id){return document.getElementById(id);}
+function num(id){var el=$(id);if(!el)return NaN;var v=parseFloat(el.value);return isFinite(v)?v:NaN;}
+function raw(id){var el=$(id);return el?String(el.value).trim():'';}
+function str(id){var el=$(id);return el?el.value:'';}
+function setOut(id,html){var el=$(id);if(el)el.innerHTML=html;}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function kv(k,v){return '<div class="tb-drow"><span class="nm">'+esc(k)+'</span><span class="ds">'+v+'</span></div>';}
+function errOut(id,msg){setOut(id,'<span class="tb-err">'+esc(msg)+'</span>');}
+function bind(id,fn){var c=$(id);if(!c)return;var run=function(){try{fn();}catch(e){}};c.addEventListener('input',run);c.addEventListener('change',run);run();}
+function tbl(head,rowsHtml){return '<table><thead><tr>'+head.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+rowsHtml+'</tbody></table>';}
+function sgn(v,d){var s=(v>=0?'+':'')+v.toFixed(d||3);return s;}
+function setV(id,v){var el=$(id);if(el&&v!=null)el.value=v;}
+
+/* ---------- 送入模拟器 / 复制 ---------- */
+function sendToSim(code,blank,gw){
+  var mOwn=$('mOwn'),mGen=$('mGen'),codeEl=$('code');
+  if(!mOwn||!codeEl)return;
+  if(mOwn.getAttribute('aria-pressed')==='true'&&mGen)mGen.click();
+  if(blank){setV('oD0',blank.D);setV('oHole',blank.hole);setV('oStick',blank.stick);setV('oFs',blank.Fs);}
+  if(gw!=null)setV('gw',gw);
+  mOwn.click();
+  codeEl.value=code;codeEl._len=code.length;
+  codeEl.dispatchEvent(new Event('input',{bubbles:true}));
+  var t=$('tProg');if(t)t.click();
+  try{window.scrollTo(0,0);}catch(e){}
+}
+function copyText(txt,done){
+  function fb(){try{var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}catch(e){}if(done)done();}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){if(done)done();},fb);
+  else fb();
+}
+
+/* ---------- 生成器通用接线 ---------- */
+function wireGen(cfg){
+  var last=null;
+  function upd(){
+    var g;try{g=cfg.make();}catch(e){g={error:'有数填得不对，检查一下'};}
+    var outEl=$(cfg.out),noteEl=$(cfg.note),sendEl=$(cfg.send);
+    if(!g||g.error){last=null;if(outEl)outEl.value='';if(noteEl)errOut(cfg.note,(g&&g.error)||'有数没填全');if(sendEl)sendEl.disabled=true;return;}
+    last=g;if(outEl)outEl.value=g.code;
+    if(noteEl)setOut(cfg.note,(g.notes||[]).map(function(n){return '<div>'+esc(n)+'</div>';}).join(''));
+    if(sendEl)sendEl.disabled=!!(cfg.sendOff&&cfg.sendOff(g));
+  }
+  bind(cfg.card,upd);
+  var sb=$(cfg.send);if(sb)sb.addEventListener('click',function(){if(last)sendToSim(last.code,last.blank,last.gw);});
+  var cb=$(cfg.copy);if(cb)cb.addEventListener('click',function(){if(last)copyText(last.code,function(){setOut(cfg.note,'<div>已复制，去粘贴到你要存的地方。</div>');});});
+}
+function numsOk(ids){for(var i=0;i<ids.length;i++)if(!isFinite(num(ids[i])))return false;return true;}
+
+/* ---------- 段行编辑器（外圆/内孔） ---------- */
+function segRows(boxId,keys,defaults){
+  var box=$(boxId);if(!box)return{add:function(){},read:function(){return[];}};
+  function addRow(vals){
+    var row=document.createElement('div');
+    row.className='tb-seg'+(keys.length===3?' c3':'');
+    row.innerHTML=keys.map(function(k){return '<label><span>'+k.label+'</span><input type="number" step="any" inputmode="decimal" data-k="'+k.k+'" value="'+(vals&&vals[k.k]!=null?vals[k.k]:'')+'"></label>';}).join('')+'<button type="button" class="tb-del">删</button>';
+    var del=row.querySelector?row.querySelector('.tb-del'):null;
+    if(del)del.addEventListener('click',function(){if(row.remove)row.remove();box.dispatchEvent(new Event('input',{bubbles:true}));});
+    box.appendChild(row);
+  }
+  (defaults||[]).forEach(addRow);
+  return {add:function(){addRow(null);},
+    read:function(){var out=[],rs=box.querySelectorAll('.tb-seg');
+      for(var i=0;i<rs.length;i++){var o={},ins=rs[i].querySelectorAll('input');
+        for(var j=0;j<ins.length;j++)o[ins[j].getAttribute('data-k')]=parseFloat(ins[j].value);
+        out.push(o);}return out;}};
+}
+
+/* ================= 计算卡（cards_a） ================= */
+/* 公差 */
+bind('tbTol',function(){
+  var size=num('xTolSize');
+  if(!isFinite(size))return errOut('xTolOut','先填基本尺寸');
+  var r=TB.tol(size,str('xTolBand'));
+  if(r.error)return errOut('xTolOut',r.error);
+  setOut('xTolOut',kv('上偏差',sgn(r.es/1000)+' 毫米')+kv('下偏差',sgn(r.ei/1000)+' 毫米')+
+    kv('极限尺寸','最大 '+r.max+' / 最小 '+r.min)+kv('公差',r.it+' 微米（IT'+str('xTolBand').slice(1)+'）'));
+});
+/* 螺纹（公制） */
+(function(){
+  var sel=$('xThSel');
+  if(sel){sel.innerHTML=Object.keys(TB.COARSE).map(Number).sort(function(a,b){return a-b;}).map(function(d){return '<option value="'+d+'"'+(d===20?' selected':'')+'>M'+d+'</option>';}).join('');
+    sel.addEventListener('change',function(){var d=+sel.value;setV('xThD',d);setV('xThP',TB.COARSE[d]);});}
+  bind('tbThread',function(){
+    var D=num('xThD'),P=num('xThP');
+    if(!(D>0&&P>0))return errOut('xThOut','大径、螺距填大于 0 的数');
+    if(D>500||P>20)return errOut('xThOut','数太离谱了，检查一下是不是多打了个 0');
+    var r=TB.thread(D,P);
+    setOut('xThOut',kv('基本中径',r.d2+' 毫米')+kv('基本小径',r.minor+' 毫米')+
+      kv('外螺纹牙高（车削参考）',r.hOut+' 毫米')+kv('内螺纹牙高',r.hIn+' 毫米')+
+      kv('攻丝底孔 · 钢/硬材料',r.drill+' 毫米（D − P）')+kv('攻丝底孔 · 铝/铜软材料',r.minor+' 毫米（D − 1.0825P）'));
+  });
+})();
+/* 管螺纹 G 速查 */
+(function(){
+  var sel=$('xPipeSel');
+  if(sel){sel.innerHTML=TB.PIPE.map(function(r,i){return '<option value="'+i+'"'+(i===3?' selected':'')+'>'+r[0]+'</option>';}).join('');}
+  bind('tbPipe',function(){
+    var r=TB.PIPE[+str('xPipeSel')||0];if(!r)return;
+    setOut('xPipeOut',kv('大径',r[1]+' 毫米')+kv('每英寸牙数',r[2])+'<div class="tb-drow"><span class="nm">螺距</span><span class="ds">'+r[3]+' 毫米</span></div>'+
+      kv('牙高',r[4]+' 毫米')+kv('底孔钻头',r[5]+' 毫米'));
+  });
+})();
+/* 三针法 */
+bind('tbWire',function(){
+  var D=num('xWireD'),P=num('xWireP'),W=num('xWireW');
+  if(!(D>0&&P>0))return errOut('xWireOut','公称直径、螺距填大于 0 的数');
+  if(!isFinite(W)||W<0)return errOut('xWireOut','量针直径填 0（用最佳量针）或实际量针的直径');
+  var r=TB.threeWire(D,P,W);
+  if(r.error)return errOut('xWireOut',r.error);
+  setOut('xWireOut',kv('基本中径',r.d2+' 毫米')+kv('最佳量针',r.best+' 毫米')+kv('这次用的量针',r.wire+' 毫米')+kv('M 值（千分尺读数）',r.M+' 毫米'));
+});
+/* 锥度 */
+(function(){
+  setOut('xTpMorse',tbl(['莫氏号','大端直径','锥度比'],TB.MORSE.map(function(m){return '<tr><td>MT'+m[0]+'</td><td>'+m[1]+'</td><td>'+m[2]+'</td></tr>';}).join('')));
+  function v(id){var s=raw(id);return s===''?null:parseFloat(s);}
+  bind('tbTaper',function(){
+    var r=TB.taper({D:v('xTpD'),d:v('xTpd'),L:v('xTpL'),K:v('xTpK')});
+    if(r.error)return errOut('xTpOut',r.error);
+    setOut('xTpOut',kv('大头 D',r.D)+kv('小头 d',r.d)+kv('锥长 L',r.L)+kv('锥度','1 : '+r.K)+kv('半角',r.half+'°'));
+  });
+})();
+/* 解三角形 */
+(function(){
+  if(!raw('xTriA')){setV('xTriA',30);setV('xTriB',40);}
+  var hints={rll:'填边 a、边 b（两条直角边），别的空着',rla:'填边 a 和角 A（锐角）',sss:'填边 a、b、c',sas:'填边 a、边 b 和它们的夹角 C',asa:'填角 A、角 B 和夹边 c'};
+  bind('tbTri',function(){
+    var mode=str('xTriMode');setOut('xTriHint',hints[mode]||'');
+    var r=TB.tri(mode,{a:num('xTriA'),b:num('xTriB'),c:num('xTriC'),A:num('xTriAngA'),B:num('xTriAngB'),C:num('xTriAngC')});
+    if(r.error)return errOut('xTriOut',r.error);
+    setOut('xTriOut',kv('边','a '+r.a+' · b '+r.b+' · c '+r.c)+kv('角','A '+r.A+'° · B '+r.B+'° · C '+r.C+'°'));
+  });
+})();
+/* 坐标点求交 */
+(function(){
+  var hints={ll:'直线 1 过 A、B；直线 2 过 C、D',lc:'直线过 A、B；圆心是 C，半径填 R',cc:'圆 1：圆心 A、半径 R；圆 2：圆心 B、半径 R2',fillet:'按走刀顺序填：A 前点、B 拐点、C 后点，R 是圆角'};
+  function pt(p){return {x:num('xGeo'+p+'x'),z:num('xGeo'+p+'z')};}
+  bind('tbGeo',function(){
+    var mode=str('xGeoMode');setOut('xGeoHint',hints[mode]||'');
+    var rd=$('xGeoRowD');if(rd)rd.hidden=mode!=='ll';
+    var rr=$('xGeoRowR2');if(rr)rr.hidden=mode!=='cc';
+    var A=pt('A'),B=pt('B'),C=pt('C'),D=pt('D'),R=num('xGeoR'),R2=num('xGeoR2'),r,i;
+    function pts(list){return list.map(function(p,i){return kv('交点 '+(i+1),'X'+p.x+' · Z'+p.z);}).join('');}
+    if(mode==='ll')r=TB.lineLine(A,B,C,D);
+    else if(mode==='lc')r=TB.lineCircle(A,B,C,R);
+    else if(mode==='cc')r=TB.circleCircle(A,R,B,R2);
+    else r=TB.fillet(A,B,C,R);
+    if(r.error)return errOut('xGeoOut',r.error);
+    if(mode==='fillet')return setOut('xGeoOut',kv('切点 1（进圆角）','X'+r.t1.x+' · Z'+r.t1.z)+kv('切点 2（出圆角）','X'+r.t2.x+' · Z'+r.t2.z)+kv('圆心','X'+r.center.x+' · Z'+r.center.z)+kv('这段圆弧用',r.g));
+    if(r.points&&r.points.length)return setOut('xGeoOut',pts(r.points)+(r.msg?kv('说明',esc(r.msg)):''));
+    return errOut('xGeoOut',r.msg||'没有交点');
+  });
+})();
+/* 转速进给时间 */
+bind('tbSpeed',function(){
+  if(!numsOk(['xSpD','xSpVc','xSpN','xSpF','xSpFm','xSpL']))return errOut('xSpOut','六个数都填上（已经预填了例子）');
+  var D=num('xSpD'),Vc=num('xSpVc'),n=num('xSpN'),F=num('xSpF'),L=num('xSpL');
+  if(!(D>0&&Vc>0&&n>0&&F>0&&L>0))return errOut('xSpOut','直径、线速度、转速、进给、长度都要大于 0');
+  var nC=TB.nFromVc(Vc,D),vcC=TB.vcFromN(n,D),fm=F*n,t=L/fm;
+  setOut('xSpOut',kv('按线速度算转速','n ≈ '+Math.round(nC)+' 转/分')+kv('按转速算线速度','Vc ≈ '+TB.R2(vcC)+' 米/分')+
+    kv('每分钟进给','F×n = '+TB.R2(fm)+' 毫米/分')+kv('切削时间','≈ '+TB.R2(t)+' 分（'+Math.round(t*60)+' 秒）'));
+});
+/* 粗糙度 */
+(function(){
+  var fs=[0.05,0.1,0.15,0.2,0.3,0.4],rs=[0.2,0.4,0.8,1.2];
+  setOut('xRfTable',tbl(['进给 f ＼ 刀尖R'].concat(rs),fs.map(function(f){return '<tr><td>'+f+'</td>'+rs.map(function(r){return '<td>'+TB.rough(f,r).Ra+'</td>';}).join('')+'</tr>';}).join('')));
+  var pairs='';for(var i=0;i<TB.RAFIN.length;i+=2){var a=TB.RAFIN[i],b=TB.RAFIN[i+1];
+    pairs+='<tr><td>Ra '+a[0]+'</td><td>'+a[1]+'</td>'+(b?'<td>Ra '+b[0]+'</td><td>'+b[1]+'</td>':'<td></td><td></td>')+'</tr>';}
+  setOut('xRaTable',tbl(['Ra','旧 ▽','Ra','旧 ▽'],pairs));
+  bind('tbRough',function(){
+    var r=TB.rough(num('xRfF'),num('xRfR'));
+    if(r.error)return errOut('xRfOut',r.error);
+    setOut('xRfOut',kv('理论 Ra','≈ '+r.Ra+' 微米')+kv('理论 Rz','≈ '+r.Rz+' 微米'));
+  });
+})();
+/* 刀尖 R 补偿 */
+bind('tbNose',function(){
+  var r=TB.nose(num('xNsR'),num('xNsA'));
+  if(r.error)return errOut('xNsOut',r.error);
+  setOut('xNsOut',kv('垂直于锥面的误差','≈ '+r.perp+' 毫米')+kv('折到 X 向（直径）','≈ '+r.dX+' 毫米')+kv('折到 Z 向','≈ '+r.dZ+' 毫米')+
+    kv('怎么用',(str('xNsType')==='in'?'内锥':'外锥')+'：把轮廓点按这两个数修一遍，或者真机开 G41/G42。方向拿不准先试切一刀、量了再定。'));
+});
+/* 重量 */
+bind('tbWeight',function(){
+  var r=TB.weight(num('xWtD'),num('xWtD2'),num('xWtL'),parseFloat(str('xWtMat')));
+  if(r.error)return errOut('xWtOut',r.error);
+  setOut('xWtOut',kv('重量','≈ '+r.kg+' 公斤')+kv('体积',r.vol+' 立方厘米'));
+});
+/* 棒料出件数 */
+bind('tbBar',function(){
+  if(!numsOk(['xBarT','xBarP','xBarW','xBarC','xBarTrim']))return errOut('xBarOut','五个数都填上');
+  var r=TB.barParts(num('xBarT'),num('xBarP'),num('xBarW'),num('xBarC'),num('xBarTrim'));
+  if(r.error)return errOut('xBarOut',r.error);
+  if(r.msg)return errOut('xBarOut',r.msg+'（可用长度 '+r.usable+'）');
+  setOut('xBarOut',kv('能出',r.n+' 件')+kv('尾料剩',r.left+' 毫米')+kv('可用长度',r.usable+' 毫米（扣夹持和修端面）'));
+});
+/* 硬度 */
+bind('tbHard',function(){
+  var r=TB.hardConv(str('xHdKind'),num('xHdVal'));
+  if(r.error)return errOut('xHdOut',r.error);
+  setOut('xHdOut',kv('换算（近似）','HRC '+r.hrc+' · HB '+r.hb+' · HV '+r.hv));
+});
+/* 单位换算 */
+bind('tbUnit',function(){
+  var html='';
+  var mm=num('xUnMm');if(isFinite(mm)){var f=TB.toFrac64(mm);html+=kv(mm+' 毫米','= '+f.inch+' 英寸（≈ '+f.text+'）');}
+  var inch=num('xUnIn');if(isFinite(inch))html+=kv(inch+' 英寸','= '+TB.R3(TB.inchToMm(inch))+' 毫米');
+  var dg=num('xUnDeg');if(isFinite(dg))html+=kv(dg+' 度','= '+(Math.round(dg*Math.PI/180*10000)/10000)+' 弧度');
+  var rd=num('xUnRad');if(isFinite(rd))html+=kv(rd+' 弧度','= '+(Math.round(rd*180/Math.PI*100)/100)+' 度');
+  if(!html)return errOut('xUnOut','填一个数试试');
+  setOut('xUnOut',html);
+});
+
+/* ================= 锥管螺纹速查卡 ================= */
+(function(){
+  var seriesEl=$('xTtSeries'),sizeEl=$('xTtSize');
+  function fill(){var series=str('xTtSeries');var list=series==='rc'?TB.RC:TB.NPT;
+    if(sizeEl)sizeEl.innerHTML=list.map(function(r){return '<option value="'+r[0]+'">'+(series==='rc'?'Rc ':'NPT ')+r[0]+'</option>';}).join('');
+    if(sizeEl)sizeEl.value='1/2';}
+  if(seriesEl)seriesEl.addEventListener('change',fill);
+  fill();
+  bind('tbTaperTh',function(){
+    var info=TB.taperInfo(str('xTtSeries'),str('xTtSize'));
+    if(!info)return errOut('xTtOut','选一个规格');
+    var html=kv('每英寸牙数',info.tpi)+'';
+    html+=kv('螺距',info.P+' 毫米')+kv('牙高',info.h+' 毫米')+
+      kv('基准平面大径','Φ'+info.major)+kv('基准平面中径','Φ'+info.d2)+kv('基准平面小径','Φ'+info.d1)+
+      kv(info.series==='npt'?'手紧啮合长度 L1（相当于基准距离）':'基准距离',info.a+' 毫米')+
+      kv('有效外螺纹长度（不小于）',info.Leff+' 毫米')+kv('小端面处大径','Φ'+info.faceMajor);
+    if(info.series==='npt')html+=kv('管外径','Φ'+info.od)+kv('小端面中径 E0','Φ'+info.E0);
+    setOut('xTtOut',html);
+  });
+})();
+
+/* ================= 静态表：底孔 / 切削参数 / 车刀角度 ================= */
+(function(){
+  function tapTable(rows){
+    return tbl(['规格','钻头直径（图）','公式核对 D−P'],rows.map(function(r){
+      return '<tr><td>'+r[0]+'</td><td>ø'+r[3]+' ~ ø'+r[4]+'</td><td>'+(Math.round((r[1]-r[2])*100)/100)+'</td></tr>';}).join(''));
+  }
+  setOut('xTapC',tapTable(TB.TAPIMG.coarse));
+  setOut('xTapF',tapTable(TB.TAPIMG.fine));
+  setOut('xCutTable',tbl(['材料','高速钢 Vc','硬质合金 Vc','粗车进给','精车进给'],TB.CUTPARAM.map(function(r){
+    return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td>'+r[4]+'</td></tr>';}).join('')));
+  setOut('xAngTable',tbl(['材料','工况','前角','后角','主偏角'],TB.TOOLANG.map(function(r){
+    return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td>'+r[4]+'</td></tr>';}).join('')));
+})();
+
+/* ================= 生成器 ================= */
+var odSegs=segRows('xOdSegs',
+  [{k:'d',label:'直径'},{k:'L',label:'长度'},{k:'c',label:'倒角C'},{k:'r',label:'圆角R'}],
+  [{d:30,L:20,c:1.5,r:0},{d:40,L:25,c:1,r:2},{d:50,L:20,c:0,r:0}]);
+var odAdd=$('xOdAdd');if(odAdd)odAdd.addEventListener('click',function(){odSegs.add();});
+wireGen({card:'tbGenOd',out:'xOdOut',note:'xOdNote',send:'xOdSend',copy:'xOdCopy',make:function(){
+  if(!numsOk(['xOdD0','xOdS','xOdFR','xOdFF','xOdAp','xOdRet','xOdAU','xOdAW']))return {error:'有数没填全（都预填了例子，删了就补上）'};
+  return TB.genOD({D0:num('xOdD0'),segs:odSegs.read(),S:num('xOdS'),fR:num('xOdFR'),fF:num('xOdFF'),ap:num('xOdAp'),ret:num('xOdRet'),allowU:num('xOdAU'),allowW:num('xOdAW')});
+}});
+
+var boSegs=segRows('xBoSegs',
+  [{k:'d',label:'孔径'},{k:'L',label:'深度'},{k:'c',label:'倒角C'}],
+  [{d:32,L:25,c:1.5},{d:42,L:20,c:0}]);
+var boAdd=$('xBoAdd');if(boAdd)boAdd.addEventListener('click',function(){boSegs.add();});
+wireGen({card:'tbGenBore',out:'xBoOut',note:'xBoNote',send:'xBoSend',copy:'xBoCopy',make:function(){
+  if(!numsOk(['xBoD0','xBoHole','xBoS','xBoFR','xBoFF','xBoAp','xBoRet','xBoAl','xBoAW']))return {error:'有数没填全（都预填了例子，删了就补上）'};
+  return TB.genBore({D0:num('xBoD0'),hole:num('xBoHole'),segs:boSegs.read(),S:num('xBoS'),fR:num('xBoFR'),fF:num('xBoFF'),ap:num('xBoAp'),ret:num('xBoRet'),allow:num('xBoAl'),allowW:num('xBoAW')});
+}});
+
+wireGen({card:'tbGenGroove',out:'xGrOut',note:'xGrNote',send:'xGrSend',copy:'xGrCopy',make:function(){
+  var t=str('xGrType');
+  var go=$('xGrOd'),gi=$('xGrIn'),gf=$('xGrFace');
+  if(go)go.hidden=t!=='od';if(gi)gi.hidden=t!=='in';if(gf)gf.hidden=t!=='face';
+  var S=num('xGrS'),F=num('xGrF');
+  if(!(S>0&&F>0))return {error:'转速、进给填大于 0 的数'};
+  if(t==='od'){if(!numsOk(['xGrD0','xGrDg','xGrW','xGrPos','xGrKw']))return {error:'外圆槽的数没填全'};
+    return TB.genGrooveOD({D0:num('xGrD0'),Dg:num('xGrDg'),W:num('xGrW'),pos:num('xGrPos'),w:num('xGrKw'),S:S,F:F});}
+  if(t==='in'){if(!numsOk(['xGrID0','xGrDb','xGrIDg','xGrIW','xGrIPos','xGrIKw']))return {error:'内孔槽的数没填全'};
+    return TB.genGrooveIn({D0:num('xGrID0'),Db:num('xGrDb'),Dg:num('xGrIDg'),W:num('xGrIW'),pos:num('xGrIPos'),w:num('xGrIKw'),S:S,F:F});}
+  if(!numsOk(['xGrFD0','xGrDo','xGrDi','xGrDep','xGrFKw']))return {error:'端面槽的数没填全'};
+  return TB.genGrooveFace({D0:num('xGrFD0'),Do:num('xGrDo'),Di:num('xGrDi'),dep:num('xGrDep'),w:num('xGrFKw'),S:S,F:F});
+}});
+
+wireGen({card:'tbGenDrill',out:'xDrOut',note:'xDrNote',send:'xDrSend',copy:'xDrCopy',make:function(){
+  if(!numsOk(['xDrD0','xDrDepth','xDrQ','xDrS','xDrF']))return {error:'有数没填全'};
+  return TB.genDrill({D0:num('xDrD0'),depth:num('xDrDepth'),Q:num('xDrQ'),S:num('xDrS'),F:num('xDrF')});
+}});
+
+/* 螺纹生成（直 + 锥管） */
+(function(){
+  var seriesEl=$('xGtSeries'),sizeEl=$('xGtSize');
+  function fillSizes(){var series=str('xGtSeries');var list=series==='rc'?TB.RC:TB.NPT;
+    if(sizeEl){sizeEl.innerHTML=list.map(function(r){return '<option value="'+r[0]+'">'+r[0]+'</option>';}).join('');sizeEl.value='1/2';}
+    var info=TB.taperInfo(series,'1/2');if(info)setV('xGtLeff',info.Leff);}
+  function syncLeff(){var info=TB.taperInfo(str('xGtSeries'),str('xGtSize'));if(info)setV('xGtLeff',info.Leff);}
+  if(seriesEl)seriesEl.addEventListener('change',fillSizes);
+  if(sizeEl)sizeEl.addEventListener('change',syncLeff);
+  fillSizes();
+  wireGen({card:'tbGenThread',out:'xGtOut',note:'xGtNote',send:'xGtSend',copy:'xGtCopy',
+    sendOff:function(g){return !!g.g76;},
+    make:function(){
+      var kind=str('xGtKind'),S=num('xGtS');
+      var gs=$('xGtStraight'),gt=$('xGtTaper');
+      if(gs)gs.hidden=kind.charAt(0)!=='s';
+      if(gt)gt.hidden=kind.charAt(0)!=='t';
+      if(!(S>0))return {error:'转速填大于 0 的数'};
+      if(kind.charAt(0)==='s'){
+        var inner=kind==='s-in';
+        var ir=$('xGtInRows');if(ir)ir.hidden=!inner;
+        if(!numsOk(['xGtD','xGtP','xGtLen']))return {error:'大径、螺距、长度没填全'};
+        var p={D:num('xGtD'),P:num('xGtP'),len:num('xGtLen'),internal:inner,method:str('xGtMethod'),S:S};
+        if(inner){if(!numsOk(['xGtBore','xGtBlankD']))return {error:'内螺纹的底孔、毛坯外径没填全'};
+          p.bore=num('xGtBore');p.blankD=num('xGtBlankD');}
+        return TB.genThread(p);
+      }
+      var tinner=kind==='t-in';
+      var info=TB.taperInfo(str('xGtSeries'),str('xGtSize'));
+      if(info)setOut('xGtTInfo',kv('基准平面大径','Φ'+info.major+'（端面处 Φ'+info.faceMajor+'）')+kv('基准距离 / 有效长',info.a+' / '+info.Leff+' 毫米')+kv('螺距',info.P+' 毫米'));
+      return TB.genThreadTaper({series:str('xGtSeries'),size:str('xGtSize'),internal:tinner,method:str('xGtTMethod'),S:S,Leff:num('xGtLeff')});
+    }});
+})();
+
+wireGen({card:'tbGenCurve',out:'xCvOut',note:'xCvNote',send:'xCvSend',copy:'xCvCopy',make:function(){
+  if(!numsOk(['xCvD0','xCvDA','xCvDB','xCvL','xCvStep','xCvS','xCvFR','xCvFF','xCvAp','xCvRet','xCvAU','xCvAW']))return {error:'有数没填全（都预填了例子）'};
+  return TB.genCurve({kind:str('xCvKind'),dA:num('xCvDA'),dB:num('xCvDB'),L:num('xCvL'),step:num('xCvStep'),D0:num('xCvD0'),S:num('xCvS'),fR:num('xCvFR'),fF:num('xCvFF'),ap:num('xCvAp'),ret:num('xCvRet'),allowU:num('xCvAU'),allowW:num('xCvAW')});
+}});
+
+/* ================= G/M 词典 ================= */
+bind('tbDict',function(){
+  var q=raw('xDictQ').toLowerCase();
+  function hit(e){return !q||(e[0]+' '+e[1]+' '+e[2]).toLowerCase().indexOf(q)>=0;}
+  function grp(title,list){
+    var f=list.filter(hit);if(!f.length)return '';
+    return '<div class="tb-grp">'+title+'（'+f.length+'）</div>'+f.map(function(e){
+      return '<div class="tb-drow"><span class="cd">'+e[0]+'</span><span class="nm">'+esc(e[1])+'</span><span class="ds">'+esc(e[2])+'</span></div>';}).join('');
+  }
+  var html=grp('G 代码',TB.GCODE)+grp('M 代码',TB.MCODE);
+  var n=TB.GCODE.filter(hit).length+TB.MCODE.filter(hit).length;
+  setOut('xDictCount','共 '+n+' 条'+(q?'（搜「'+esc(q)+'」）':''));
+  setOut('xDictList',html||'<p class="note">没找到，换个词试试。</p>');
+});
+
+/* ================= 图纸符号 ================= */
+bind('tbSym',function(){
+  var q=raw('xSymQ').toLowerCase();
+  function hit(s){return !q||(s[1]+' '+s[2]+' '+s[3]).toLowerCase().indexOf(q)>=0;}
+  function glyph(s){return s.charAt(0)==='#'?'<span class="tb-symbox">'+esc(s.slice(1))+'</span>':esc(s);}
+  function grp(title,list){
+    var f=list.filter(hit);if(!f.length)return '';
+    return '<div class="tb-grp">'+title+'（'+f.length+'）</div>'+f.map(function(s){
+      return '<div class="tb-drow"><span class="tb-sym">'+glyph(s[1])+'</span><span class="nm">'+esc(s[2])+'</span><span class="ds">'+esc(s[3])+'</span></div>';}).join('');
+  }
+  var gdt=TB.SYMS.filter(function(s){return s[0]==='形位';});
+  var drw=TB.SYMS.filter(function(s){return s[0]==='制图';});
+  var n=gdt.filter(hit).length+drw.filter(hit).length;
+  setOut('xSymCount','共 '+n+' 条'+(q?'（搜「'+esc(q)+'」）':''));
+  setOut('xSymList',grp('形位公差',gdt)+grp('制图常用符号',drw)||'<p class="note">没找到，换个词试试。</p>');
+});
+
+/* ================= 程序库（localStorage，带兜底） ================= */
+(function(){
+  var KEY='tbLibV1',lib=[],okStore=true;
+  try{localStorage.setItem('__tbProbe','1');localStorage.removeItem('__tbProbe');}
+  catch(e){okStore=false;}
+  function note(html){setOut('xLibNote',html);}
+  if(!okStore){
+    note('<span class="tb-err">这台手机的浏览器本地存储用不了（可能开了无痕、或被系统限制了）：程序库存不了。生成的程序请用「复制」发出去备份。编辑器和生成器不受影响。</span>');
+    var sv0=$('xLibSave');if(sv0)sv0.disabled=true;
+  }else{
+    try{var s=localStorage.getItem(KEY);
+      if(s){var parsed=JSON.parse(s);if(Array.isArray(parsed))lib=parsed;
+        else note('<span class="tb-err">程序库数据不对劲，已按空库打开（旧数据没法恢复）。</span>');}
+    }catch(e){note('<span class="tb-err">程序库读取失败（数据可能被清了），已按空库打开。</span>');lib=[];}
+  }
+  function persist(){
+    try{localStorage.setItem(KEY,JSON.stringify(lib));return true;}
+    catch(e){return false;}
+  }
+  function fmtDate(ts){var d=new Date(ts);function p2(n){return (n<10?'0':'')+n;}
+    return (d.getMonth()+1)+'月'+d.getDate()+'日 '+p2(d.getHours())+':'+p2(d.getMinutes());}
+  function render(){
+    var box=$('xLibList');if(!box)return;
+    if(!lib.length){box.innerHTML='<p class="note">还没有存过程序。在编辑器里写好（或用上面的生成器送入模拟器后改好），回来点「存进来」。</p>';return;}
+    box.innerHTML=lib.map(function(it,i){
+      return '<div class="tb-lib-it"><div class="nm">'+esc(it.name)+'</div><div class="dt">'+fmtDate(it.ts)+' · '+String(it.code).split('\n').length+' 行</div>'+
+      '<div class="tb-btns"><button type="button" data-act="load" data-i="'+i+'">载入模拟器</button><button type="button" data-act="copy" data-i="'+i+'">复制</button><button type="button" data-act="share" data-i="'+i+'">分享</button><button type="button" data-act="del" data-i="'+i+'">删除</button></div></div>';}).join('');
+  }
+  render();
+  var sv=$('xLibSave');
+  if(sv)sv.addEventListener('click',function(){
+    if(!okStore)return;
+    var codeEl=$('code'),code=codeEl?codeEl.value:'';
+    if(!code||!code.replace(/\s/g,''))return note('<span class="tb-err">编辑器里还没有程序，先在编程页写一段、或用生成器送入模拟器，再回来存。</span>');
+    var name=raw('xLibName')||('我的程序 '+(lib.length+1));
+    lib.push({name:name,code:code,ts:Date.now()});
+    if(!persist()){lib.pop();return note('<span class="tb-err">没存上：本地空间可能满了，或者被系统拦了。这条程序还在编辑器里，先用「复制」发出去备份，再删几条旧程序试试。</span>');}
+    setV('xLibName','');render();
+    note('存好了《'+esc(name)+'》，一共 '+lib.length+' 条。');
+  });
+  var list=$('xLibList');
+  if(list)list.addEventListener('click',function(e){
+    var b=e.target;if(!b||!b.getAttribute)return;
+    var act=b.getAttribute('data-act');if(!act)return;
+    var it=lib[+b.getAttribute('data-i')];if(!it)return;
+    if(act==='load'){sendToSim(it.code,null);note('已载入《'+esc(it.name)+'》到编辑器，毛坯按模拟器当前设置。');}
+    else if(act==='copy'){copyText(it.code,function(){note('《'+esc(it.name)+'》已复制。');});}
+    else if(act==='share'){
+      if(navigator.share){navigator.share({title:it.name,text:it.code}).catch(function(){});}
+      else copyText(it.code,function(){note('这台设备不支持系统分享，已改成复制《'+esc(it.name)+'》，去粘贴发送。');});
+    }
+    else if(act==='del'){lib.splice(+b.getAttribute('data-i'),1);
+      if(!persist())note('<span class="tb-err">删了这一条，但保存失败（存储异常），刷新后可能还会出现。</span>');
+      else note('已删除《'+esc(it.name)+'》。');
+      render();}
+  });
+})();
+})();
+</script>
 </body>
 </html>

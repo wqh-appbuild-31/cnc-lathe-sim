@@ -1,0 +1,52 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build unsigned .app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project CNCLatheSim.xcodeproj \
+            -scheme CNCLatheSim \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          rm -rf Payload CNCLatheSim.ipa
+          mkdir -p Payload
+          cp -R "build/Build/Products/Release-iphoneos/CNCLatheSim.app" Payload/
+          zip -qry CNCLatheSim.ipa Payload
+          ls -la CNCLatheSim.ipa
+          unzip -l CNCLatheSim.ipa | head -40
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CNCLatheSim-unsigned-ipa
+          path: CNCLatheSim.ipa

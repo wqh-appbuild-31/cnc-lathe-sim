@@ -1,0 +1,2343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}</style>
+</head>
+<body>
+<title>数控车编程3D模拟</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 布局：手机上车床在最上面，下面是零件和程序；电脑上左边填写、右边车床。深石墨色底，车床面板做成阳极氧化铝的质感 */
+:root{
+  color-scheme: dark;
+  --bg:#0a0e11; --bg-2:#0f1519; --surf:#131a1f; --surf-2:#19222a; --line:#24303a; --line-2:#2f3d48;
+  --ink:#e8eef2; --ink-dim:#8a99a4; --ink-faint:#5d6c77;
+  --amber:#f2b33d; --amber-2:#ffcf6b; --cyan:#4cc9e0; --rapid:#ff6257; --ok:#4cc483; --bad:#ff6a5f;
+  --screen:#07121a; --screen-2:#0b1a24; --screen-line:#15303f;
+  --metal:#6f7c84; --metal-hi:#b9c5cc; --chuck:#3a444b;
+  --f-num:"Chakra Petch","Noto Sans SC",system-ui,sans-serif;
+  --f-body:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --f-code:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+body{color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55;
+  background:radial-gradient(1200px 600px at 70% -10%,#16232c 0%,transparent 60%),var(--bg);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 32px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+h1,h2,h3{text-wrap:balance}
+button,input,select,textarea{font-family:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* 顶部 */
+.top{max-width:1240px;margin:0 auto 12px;display:grid;gap:4px}
+.brandrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.top h1{margin:0;font-family:var(--f-num);font-weight:600;font-size:24px;letter-spacing:.04em;
+  background:linear-gradient(180deg,#fff 0%,#c9d4db 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.top p{margin:0;color:var(--ink-dim);font-size:13px}
+.byline{font-size:12px;font-weight:700;color:#1a1300;background:linear-gradient(180deg,var(--amber-2),var(--amber));border-radius:4px;padding:2px 9px;letter-spacing:.1em}
+
+/* 栏目 */
+.tabs{max-width:1240px;margin:0 auto 16px;display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--surf);border:1px solid var(--line);
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:6;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.tabs button{flex:1 1 0;font-weight:700;font-size:14px;padding:9px 6px;border-radius:9px;border:0;background:transparent;color:var(--ink-dim);cursor:pointer;transition:background .15s,color .15s}
+.tabs button[aria-selected=true]{background:linear-gradient(180deg,#2a3640,#1e2830);color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 0 1px var(--line-2)}
+.tabs button[aria-selected=true]::after{content:"";display:block;width:22px;height:2px;margin:4px auto 0;border-radius:2px;background:var(--amber)}
+
+/* 主区域 */
+.wrap{max-width:1240px;margin:0 auto;display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:920px){.wrap{grid-template-columns:minmax(0,390px) minmax(0,1fr);grid-template-areas:"form machine";align-items:start}.wrap>.form{grid-area:form}.wrap>.machine{grid-area:machine}}
+.pane{max-width:1240px;margin:0 auto}
+
+/* 通用小件 */
+.note{margin:0;font-size:12px;color:var(--ink-dim)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:600;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);
+  background:linear-gradient(180deg,#222d36,#1a232a);color:var(--ink);cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.primary{border-color:#b8862a;background:linear-gradient(180deg,var(--amber-2),var(--amber));color:#1a1300}
+input[type=number],input[type=text],select{width:100%;box-sizing:border-box;background:var(--screen);color:var(--ink);border:1px solid var(--line-2);border-radius:7px;padding:7px 9px;font-family:var(--f-num);font-size:16px;text-align:right;font-variant-numeric:tabular-nums}
+select{text-align:left;font-family:var(--f-body);font-size:16px}
+.field{display:grid;grid-template-columns:minmax(0,1fr) 104px;align-items:center;gap:10px}
+.field span{font-size:13px}
+.field small,.field2 small{display:block;color:var(--ink-dim);font-size:11px;line-height:1.35}
+.field2{display:grid;gap:6px}.field2>span{font-size:13px}
+.radio{display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer}.radio input{margin-top:4px;accent-color:var(--amber)}
+.radio small.sub{display:block;color:var(--ink-dim);font-size:11px;line-height:1.35;margin-top:2px}
+.finchk{padding:8px 10px;border-radius:7px;border:1px solid var(--line-2);background:var(--surf)}
+.finchk:has(input:checked){border-color:var(--cyan);background:rgba(76,201,224,.08)}
+.bchip .fin{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;font-size:11px;font-weight:700;color:#06222a;background:var(--cyan)}
+.tools input:disabled{opacity:.75;cursor:default}
+.chipset{display:flex;flex-wrap:wrap;gap:6px}
+.chipset button{font-family:var(--f-num);font-size:14px;padding:4px 11px;border-radius:6px;border:1px solid var(--line-2);background:var(--screen);color:var(--ink);cursor:pointer}
+.chipset button[aria-pressed=true]{border-color:var(--amber);color:var(--amber)}
+.errors{background:#2a1110;border:1px solid #6d2a26;border-radius:8px;padding:10px 12px;color:#ffd1cc;font-size:13px}
+.errors ul{margin:0;padding-left:18px}
+.cnav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:4px 0 12px}
+.cnav button{min-height:46px;padding:4px 6px;border-radius:8px;border:1px solid var(--line-2);background:var(--surf-2);color:var(--ink);font:600 14px/1.25 var(--f-body);cursor:pointer}
+.cnav button[aria-pressed=true]{border-color:var(--amber);color:#1a1205;background:var(--amber)}
+.nin{display:flex;gap:4px;min-width:0}.nin input{min-width:0;flex:1 1 auto;width:100%}
+.nin button{flex:0 0 42px;min-height:40px;border-radius:6px;border:1px solid var(--line-2);background:var(--surf-2);color:var(--amber);font:700 17px var(--f-num);cursor:pointer}
+.pt .field{grid-template-columns:auto minmax(0,1fr);gap:6px}
+.field:has(.nin){grid-template-columns:minmax(0,1fr) 150px}.pt .field:has(.nin){grid-template-columns:auto minmax(0,1fr)}
+.pt{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px;align-items:end}.pt>b{font-size:13px;padding-bottom:10px;min-width:4.5em}
+.warns{background:rgba(242,179,61,.08);border:1px solid #6b5220;border-radius:8px;padding:10px 12px;color:#f7e2b5;font-size:13px}.warns p{margin:0}
+.fixbtn{margin:8px 8px 0 0;font-weight:700;font-size:13px;padding:7px 12px;border-radius:7px;border:0;background:var(--amber);color:#1a1300;cursor:pointer}
+
+/* 左边：填写 */
+.form{display:grid;gap:12px;min-width:0;grid-template-columns:minmax(0,1fr)}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:var(--surf);border:1px solid var(--line)}
+.modes button{font-weight:700;font-size:14px;padding:10px 6px;border-radius:9px;border:0;background:transparent;color:var(--ink-dim);cursor:pointer}
+.modes button[aria-pressed=true]{background:linear-gradient(180deg,var(--amber-2),var(--amber));color:#1a1300;box-shadow:0 4px 14px rgba(242,179,61,.25)}
+.presets{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--ink-dim)}
+.pre{font-size:13px;padding:5px 12px;border-radius:999px;border:1px solid var(--line-2);background:var(--surf);color:var(--ink);cursor:pointer}
+.pre:hover{border-color:var(--amber)}
+.card,.group{background:linear-gradient(180deg,var(--surf-2),var(--surf));border:1px solid var(--line);border-radius:var(--r);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.card{padding:14px;display:grid;gap:10px;min-width:0}
+.card h3{margin:0;font-size:15px}
+details.group{padding:0;margin:0}
+details.group>summary{list-style:none;display:flex;align-items:center;gap:10px;padding:13px 14px;cursor:pointer;border-radius:var(--r)}
+details.group>summary::-webkit-details-marker,.fitem>summary::-webkit-details-marker{display:none}
+details.group>summary b{font-size:15px;flex:none}
+.sum{flex:1;min-width:0;color:var(--ink-dim);font-size:12px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+details.group>summary::after,.fitem>summary::after{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--ink-dim);border-bottom:2px solid var(--ink-dim);transform:rotate(45deg);margin:0 4px 3px;transition:transform .2s}
+details[open]>summary::after{transform:rotate(-135deg);margin-bottom:-3px}
+details.group[open]>summary{border-bottom:1px solid var(--line);border-radius:var(--r) var(--r) 0 0}
+details.group[open]>summary b{color:var(--amber)}
+.gbody{display:grid;gap:10px;padding:14px;grid-template-columns:minmax(0,1fr)}
+details.more details.group{background:var(--bg-2)}
+.done{justify-self:end;font-weight:600;font-size:13px;padding:7px 14px;border-radius:7px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer}
+.tools{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:10px}
+.skwrap{position:relative;aspect-ratio:16/9;max-width:100%;border:1px solid var(--screen-line);border-radius:8px;overflow:hidden;background:var(--screen)}
+.skwrap canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
+.blist{display:flex;flex-wrap:wrap;gap:6px}
+.bchip{font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--line-2);background:var(--screen);color:var(--ink);cursor:pointer;text-align:left}
+.bchip i{font-style:normal;font-family:var(--f-num);color:var(--ink-dim);margin-right:6px}
+.bchip.on{border-color:var(--amber);background:rgba(242,179,61,.1)}.bchip.on i{color:var(--amber)}
+.addrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:6px}
+.addrow button{font-size:13px;font-weight:600;padding:8px 4px;border-radius:7px;border:1px dashed #2f6b78;background:rgba(76,201,224,.05);color:var(--cyan);cursor:pointer}
+.bedit{display:grid;gap:8px;background:var(--screen);border:1px solid var(--screen-line);border-radius:8px;padding:10px}
+.bhead b{color:var(--amber)}
+.brow{display:flex;flex-wrap:wrap;gap:6px}.brow .btn{padding:6px 10px;font-size:12px}
+.photo{display:grid;gap:6px}
+.photobox{display:grid;gap:6px}.photobox img{max-width:100%;max-height:320px;object-fit:contain;border-radius:8px;background:#000}
+.stat{border-radius:8px;padding:10px 12px;font-size:14px}
+.stat.ok{background:rgba(76,196,131,.1);border:1px solid #2d6b4a;color:#c9f2da}
+.stat.bad{background:#2a1110;border:1px solid #6d2a26;color:#ffd1cc}
+.rpm{font-size:12px;color:var(--ink-dim)}.rpm b{color:var(--amber);font-family:var(--f-num);font-weight:600}
+
+/* 程序编辑 */
+.edhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.edtag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-dim)}
+.edtag.mod{border-color:#6b5220;color:var(--amber)}
+.edtag.own{border-color:#2f6b78;color:var(--cyan)}
+.codebox{position:relative;border:1px solid var(--screen-line);border-radius:8px;background:var(--screen);overflow:hidden}
+#code{display:block;width:100%;box-sizing:border-box;min-height:220px;max-height:420px;resize:vertical;border:0;outline:0;background:transparent;color:#d8f3ff;
+  font-family:var(--f-code);font-size:16px;line-height:1.6;padding:10px 12px;white-space:pre;overflow:auto;tab-size:4}
+.edbtns{display:flex;flex-wrap:wrap;gap:6px}
+.edbtns .btn{padding:7px 11px;font-size:12px}
+.codemsg{display:grid;gap:4px;font-size:12px}
+.codemsg p{margin:0;padding:6px 10px;border-radius:6px;background:rgba(242,179,61,.08);color:#f2deb0;border-left:3px solid var(--amber)}
+.codemsg p.err{background:#2a1110;color:#ffd1cc;border-left-color:var(--bad)}
+.copyrow{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.copyrow label{display:flex;gap:6px;align-items:flex-start;font-size:12px;color:var(--ink-dim);cursor:pointer;flex:1 1 220px}
+.copyrow label input{margin-top:3px;accent-color:var(--amber)}
+.copied{font-size:12px;color:var(--ok)}
+textarea.fallback{width:100%;box-sizing:border-box;height:120px;background:var(--screen);color:var(--ink);border:1px solid var(--line);font-family:var(--f-code);font-size:12px}
+
+/* 右边：车床面板 */
+.machine{display:grid;gap:12px;min-width:0}
+.mhead{display:flex;align-items:center;gap:8px}
+.mhead h2{margin:0;font-size:16px}
+.beta{font-size:11px;font-weight:600;color:var(--amber);border:1px solid #6b5220;border-radius:4px;padding:1px 7px;letter-spacing:.04em}
+.cnc{position:relative;border-radius:16px;padding:14px;display:grid;gap:12px;min-width:0;color:#d9e1e6;
+  background:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px),
+    linear-gradient(180deg,#323a42 0%,#272e35 45%,#1e2429 100%);
+  border:1px solid #434c55;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.4),0 20px 50px rgba(0,0,0,.55)}
+.screw{position:absolute;width:11px;height:11px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e9edf0,#6c757c 70%);box-shadow:0 0 0 1px #1a1f23,0 1px 0 rgba(255,255,255,.1)}
+.screw::after{content:"";position:absolute;left:2px;right:2px;top:5px;height:1px;background:#3d454b;transform:rotate(35deg)}
+.screw.tl{left:7px;top:7px}.screw.tr{right:7px;top:7px}.screw.bl{left:7px;bottom:7px}.screw.br{right:7px;bottom:7px}
+.plate{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:0 14px}
+.plate-name{font-weight:700;font-size:13px;letter-spacing:.22em;color:#c9d2d8;text-shadow:0 -1px 0 rgba(0,0,0,.6)}
+.plate-model{font-family:var(--f-num);font-size:11px;letter-spacing:.16em;color:#9aa6ae;border:1px solid #4b555e;border-radius:3px;padding:1px 8px;background:rgba(0,0,0,.2)}
+.panelpic{display:flex;gap:10px;align-items:center;padding:0 10px;font-size:12px;color:#9aa6ae}
+.panelpic img{max-height:90px;max-width:60%;border-radius:4px;border:1px solid #4b555e}
+.screen{background:var(--screen);border:7px solid #0c0f12;border-radius:10px;overflow:hidden;min-width:0;
+  box-shadow:inset 0 0 0 1px #000,0 0 0 1px #454f58,0 1px 0 rgba(255,255,255,.08)}
+.bar{display:flex;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;gap:12px;align-items:center;background:linear-gradient(180deg,#1f5aa0,#17467e);color:#e6efff;font-size:12px;padding:4px 10px}
+.bar>span{flex:none}
+.bar b{font-family:var(--f-num);font-weight:600;color:#fff;font-variant-numeric:tabular-nums}
+.bar-mode{background:var(--amber);color:#1a1300;font-weight:700;padding:0 8px;border-radius:2px}
+#modeTag{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#sN{display:inline-block;min-width:3.2em}
+.bar-time{margin-left:auto}
+.sbody{display:grid;grid-template-columns:190px minmax(0,1fr);min-width:0}
+.coords{padding:8px 10px;border-right:1px solid var(--screen-line);display:grid;gap:4px;align-content:start;min-width:0;background:linear-gradient(180deg,#0a1922,#07121a)}
+.ttl{font-size:11px;color:var(--ink-dim);letter-spacing:.1em}
+.axis{display:flex;align-items:baseline;gap:8px;min-width:0}
+.ax{font-family:var(--f-num);font-size:18px;color:var(--cyan);font-weight:600}
+.num{display:inline-block;min-width:6.2ch;text-align:right;font-family:var(--f-num);font-size:26px;color:#f4f8fb;font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 0 12px rgba(120,200,255,.25)}
+.mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:6px}
+.mini div{background:var(--screen-2);border:1px solid var(--screen-line);border-radius:3px;padding:3px 6px;min-width:0}
+.mini span{display:block;font-size:10px;color:var(--ink-dim)}
+.mini b{font-family:var(--f-num);font-weight:600;font-size:15px;color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap}
+.view{position:relative;aspect-ratio:16/10;max-width:100%;background:var(--screen)}
+.view canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.v3{position:absolute;inset:0}.v3 canvas{width:100%!important;height:100%!important;display:block;touch-action:none}
+.legend{position:absolute;left:8px;top:6px;right:auto;max-width:calc(100% - 16px);font-size:11px;color:#fff;display:flex;flex-wrap:wrap;gap:4px 10px;pointer-events:none;font-family:var(--f-num);text-shadow:0 1px 2px #000;background:rgba(10,18,24,.62);padding:3px 8px;border-radius:6px}
+.legend i{display:inline-block;width:16px;height:0;border-top:3px solid var(--cyan);vertical-align:middle;margin-right:4px;border-radius:2px}
+.legend .lr{color:#c3d0d9;font-family:var(--f-body)}
+.hint3{position:absolute;left:8px;bottom:6px;font-size:11px;color:#fff;background:rgba(10,18,24,.55);padding:2px 7px;border-radius:5px;pointer-events:none}
+.alarm{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(80,14,10,.94);border:1px solid var(--bad);color:#ffe0dc;border-radius:6px;padding:8px 10px;font-size:13px}
+.prog{position:relative;max-height:180px;overflow:auto;background:var(--screen-2);border-top:1px solid var(--screen-line);font-family:var(--f-code);font-size:13px;color:var(--ink)}
+.prog ol{list-style:none;margin:0;padding:4px 0}
+.prog li{display:flex;gap:12px;padding:1px 10px;white-space:pre;transition:background .15s}
+.prog li .n{color:#4b6676;min-width:2.5em;text-align:right;font-variant-numeric:tabular-nums}
+.prog li.cur{background:linear-gradient(90deg,#1f5a76,#173f54);color:#fff}
+.prog li.cur .n{color:var(--amber)}
+.prog li.crash{background:#5a1814}
+.soft{display:flex;gap:2px;background:#0d1a23;border-top:1px solid var(--screen-line);padding:3px}
+.soft button{flex:1;font-size:12px;padding:6px 4px;border:1px solid #234152;background:linear-gradient(#1c3646,#122733);color:var(--ink-dim);cursor:pointer;border-radius:3px}
+.soft button[aria-pressed=true]{color:#1a1300;background:linear-gradient(#f6c45a,#e0a332);border-color:#f6c45a;font-weight:700}
+
+/* 操作区：按真机面板分组 */
+.ops{display:grid;gap:12px;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) auto;align-items:stretch;
+  background:linear-gradient(180deg,#1a1f24,#15191d);border:1px solid #3a434b;border-radius:12px;padding:12px;box-shadow:inset 0 2px 6px rgba(0,0,0,.45)}
+@media (max-width:640px){.ops{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.ops .dials{grid-column:1/-1}}
+.opgrp{display:grid;gap:8px;align-content:start;min-width:0}
+.oplab{font-size:11px;font-weight:700;letter-spacing:.2em;color:#7f8c95;text-shadow:0 -1px 0 #000;display:flex;align-items:center;gap:6px}
+.oplab::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,#3a444c,transparent)}
+.keys3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.keys2{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+@media (max-width:640px){.ops>.opgrp:first-child{grid-column:1/-1}.keys2{grid-template-columns:1fr 1fr}.ops>.opgrp:nth-child(2){grid-column:1/-1}}
+.key{position:relative;font-weight:700;font-size:13px;padding:22px 4px 10px;border-radius:9px;border:1px solid #0b0d0f;color:#eef2f4;cursor:pointer;
+  background:linear-gradient(180deg,#4a545c,#2b3238);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 3px 0 #0b0e10,0 6px 10px rgba(0,0,0,.4);transition:transform .05s}
+.key:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 1px 0 #0b0e10}
+.key:disabled{opacity:.4;cursor:default}
+.key.start{background:linear-gradient(180deg,#38b073,#1d7447)}
+.key.hold{background:linear-gradient(180deg,#e2a733,#a8700f);color:#1c1300}
+.key.reset{background:linear-gradient(180deg,#56626b,#363f46);padding:14px 4px}
+.key.take{background:linear-gradient(180deg,#3d7aa3,#245273);padding:14px 4px}
+.led{position:absolute;top:8px;left:50%;width:18px;height:5px;margin-left:-9px;border-radius:3px;background:#2b211b;box-shadow:inset 0 1px 2px rgba(0,0,0,.7)}
+.key.on .led{background:#7dff9e;box-shadow:0 0 10px #7dff9e}
+.key.hold.on .led,#kSingle.on .led{background:#ffd56b;box-shadow:0 0 10px #ffd56b}
+.dials{display:flex;gap:16px;justify-content:center;align-items:center}
+.dial{display:grid;justify-items:center;gap:4px}
+.dlabel{font-size:11px;font-weight:700;letter-spacing:.15em;color:#8a97a0}
+.knob{position:relative;width:62px;height:62px;border-radius:50%;border:0;cursor:pointer;
+  background:conic-gradient(from 0deg,#2a3137,#59636b,#2a3137,#59636b,#2a3137);box-shadow:0 0 0 4px #14181b,0 0 0 5px #4a535b,0 6px 12px rgba(0,0,0,.5),inset 0 0 0 7px #353d44}
+.knob .ptr{position:absolute;left:50%;top:6px;width:4px;height:20px;margin-left:-2px;background:var(--amber);border-radius:2px;transform-origin:2px 25px;transition:transform .2s;box-shadow:0 0 6px rgba(242,179,61,.6)}
+.scale{display:flex;gap:10px;font-family:var(--f-num);font-size:11px;color:#7f8c95}
+.scale span.on{color:var(--amber);font-weight:700}
+.estop{width:66px;height:66px;border-radius:50%;cursor:pointer;border:6px solid #f2c629;padding:0;color:#fff;font-weight:700;font-size:12px;
+  background:radial-gradient(circle at 40% 32%,#ff7a6b,#c21d10 65%,#8e130a);box-shadow:0 0 0 1px #6e5a07,0 6px 12px rgba(0,0,0,.55)}
+.estop:active{transform:translateY(2px)}
+.opnote{margin:0;font-size:11px;color:#7f8c95;padding:0 4px}
+
+/* 跑完结果 */
+.result{background:linear-gradient(180deg,var(--surf-2),var(--surf));border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:10px}
+.result h2{margin:0;font-size:13px;letter-spacing:.08em;color:var(--ink-dim)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.stats .stat{padding:0;border:0;background:none}
+.stats .k{font-size:12px;color:var(--ink-dim)}
+.stats .v{font-family:var(--f-num);font-size:24px;color:var(--ink);font-variant-numeric:tabular-nums}
+.stats .v small{font-size:13px;color:var(--ink-dim)}
+.tsplit{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink-dim)}
+.tsplit b{color:var(--ink);font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--ink-dim);font-weight:500;font-size:12px}
+td.ok{color:var(--ok)}td.bad{color:var(--bad);font-weight:700}
+.warn{border:1px solid #6b5220;border-radius:8px;padding:10px 12px;font-size:12px;color:#f2deb0;background:rgba(242,179,61,.06)}
+.warn b{color:var(--amber)}
+
+/* 计算 */
+.lead{margin:0 0 12px;color:var(--ink-dim)}
+.calcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;align-items:start}
+.out{background:var(--screen);border:1px solid var(--screen-line);border-radius:7px;padding:9px 11px;font-size:13px;line-height:1.7}
+.out b{font-family:var(--f-num);font-weight:600;font-size:17px;color:var(--amber);font-variant-numeric:tabular-nums}
+
+/* 机修 */
+.search input{width:100%;box-sizing:border-box;background:var(--screen);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:12px 14px;font-size:16px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.chips button{font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid var(--line-2);background:var(--surf);color:var(--ink-dim);cursor:pointer}
+.chips button[aria-pressed=true]{background:var(--cyan);border-color:var(--cyan);color:#06222a;font-weight:700}
+.flist{display:grid;gap:8px}
+.fitem{background:linear-gradient(180deg,var(--surf-2),var(--surf));border:1px solid var(--line);border-radius:var(--r)}
+.fitem>summary{list-style:none;display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer}
+.fitem .code{flex:none;font-family:var(--f-code);font-size:13px;font-weight:600;color:#1a1300;background:var(--amber);border-radius:4px;padding:1px 7px}
+.fitem .ft{flex:1;min-width:0;font-weight:600}
+.fitem .fc{flex:none;font-size:11px;color:var(--ink-dim)}
+@media (max-width:480px){.fitem .fc{display:none}}
+.fbody{padding:0 12px 12px;border-top:1px solid var(--line)}
+.fbody p{margin:10px 0 6px;color:var(--ink-dim)}
+.fbody ul{margin:0;padding-left:20px;display:grid;gap:4px}
+.fbody a,.srcnote a{color:var(--cyan)}
+.srcnote{margin-top:16px;font-size:12px;color:var(--ink-dim)}.srcnote p{margin:0 0 6px}
+
+/* 底部 */
+.foot{max-width:1240px;margin:28px auto 0;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:center;color:var(--ink-dim);font-size:12px}
+.fbk{font-size:12px;font-weight:700;padding:4px 14px;border-radius:999px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;text-decoration:none}
+.fbktip{color:var(--ink);font-size:13px}
+.vernote{flex-basis:100%;margin:0;text-align:center;font-size:12px;color:var(--ink-faint)}
+
+@media (max-width:640px){
+  .top h1{font-size:21px}
+  .sbody{grid-template-columns:minmax(0,1fr)}
+  .coords{border-right:0;border-bottom:1px solid var(--screen-line);grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px}
+  .coords .ttl,.coords .mini{grid-column:1/-1}
+  .num{font-size:21px}
+  .bar{font-size:11px;gap:10px}
+  .view{aspect-ratio:4/3}
+  .prog{max-height:126px}
+  .cnc{padding:12px 10px}
+  .plate-model{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}.key:active,.btn:active{transform:none}}
+/* 样品条（车床上方） */
+.samples{display:flex;gap:6px;align-items:center;overflow-x:auto;padding:2px 0 8px;margin-top:6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.samples::-webkit-scrollbar{display:none}
+.samples>span{flex:none;font-size:12px;color:var(--ink-dim)}
+.samples .pre{flex:none;min-height:34px}
+.pre[aria-pressed=true]{border-color:var(--amber);color:var(--amber);background:#2a2110}
+/* 刀架 */
+.turret{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto auto;gap:6px;align-items:center;justify-items:center;margin:4px auto 12px;max-width:340px}
+.turret .core{grid-column:2;grid-row:2;width:74px;height:74px;border-radius:8px;background:linear-gradient(145deg,#5d6a72,#2c353b);border:1px solid var(--line-2);display:grid;place-items:center;font-size:12px;color:#dfe7ec;box-shadow:inset 0 1px 0 #ffffff22}
+.turret .st{font-size:12px;line-height:1.3;text-align:center;padding:5px 8px;border-radius:6px;border:1px dashed var(--line-2);color:var(--ink-faint);min-width:76px}
+.turret .st b{display:block;font-family:var(--f-num);font-size:13px;color:var(--ink-dim)}
+.turret .st.on{border-style:solid;border-color:var(--amber);color:var(--ink)}
+.turret .st.on b{color:var(--amber)}
+.turret .s1{grid-column:2;grid-row:1}.turret .s2{grid-column:3;grid-row:2}.turret .s3{grid-column:2;grid-row:3}.turret .s4{grid-column:1;grid-row:2}
+.trow{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.trow .tn{font-size:13px}.trow .tn small{display:block;color:var(--ink-faint);font-size:11px;font-family:var(--f-num)}
+.trow .pos{display:flex;gap:6px}
+.trow .pos button{width:40px;height:38px;border-radius:7px;border:1px solid var(--line-2);background:var(--screen);color:var(--ink);font-family:var(--f-num);font-size:15px;cursor:pointer}
+.trow .pos button[aria-pressed=true]{border-color:var(--amber);color:#1a1200;background:var(--amber);font-weight:600}
+.tbtns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+</style>
+
+<header class="top">
+  <div class="brandrow"><h1>数控车编程3D模拟</h1><span class="byline">孙少 制作</span></div>
+  <p>填尺寸出程序，看走刀，算工时；常用计算和机修资料也在这里。</p>
+</header>
+<nav class="tabs" role="tablist" aria-label="栏目">
+  <button type="button" role="tab" id="tProg" aria-selected="true">编程</button>
+  <button type="button" role="tab" id="tCalc" aria-selected="false">计算</button>
+  <button type="button" role="tab" id="tFix" aria-selected="false">机修资料</button>
+</nav>
+
+<div class="wrap pane" id="tab-prog">
+  <section class="machine" aria-label="数控车床">
+   <div class="mhead"><h2>车床</h2><span class="beta">测试版 · 程序仅供参考</span></div>
+   <div class="samples" id="samples" role="group" aria-label="样品"><span>选个样品直接看：</span></div>
+   <div class="cnc">
+    <i class="screw tl"></i><i class="screw tr"></i><i class="screw bl"></i><i class="screw br"></i>
+    <div class="plate"><span class="plate-name" id="plateName">数控车床</span><span class="plate-model">TURN · SIM-1</span></div>
+    <div class="panelpic" id="panelPic" hidden><img id="panelImg" alt="你的数控面板照片"><span>你的面板照片</span></div>
+    <div class="screen">
+      <div class="bar">
+        <span class="bar-mode" id="sState">准备好</span>
+        <span>程序 <b id="sProg">O0001</b></span>
+        <span>行 <b id="sN">N1</b></span>
+        <span id="modeTag">G99</span>
+        <span class="bar-time">加工时间 <b id="sTime">00:00</b></span>
+      </div>
+      <div class="sbody">
+        <div class="coords">
+          <div class="ttl">绝对坐标</div>
+          <div class="axis"><span class="ax">X</span><span class="num" id="sX">0.000</span></div>
+          <div class="axis"><span class="ax">Z</span><span class="num" id="sZ">0.000</span></div>
+          <div class="mini">
+            <div><span>T</span><b id="sT">T0101</b></div>
+            <div><span>S</span><b id="sS">0</b></div>
+            <div><span>F</span><b id="sF">0</b></div>
+          </div>
+        </div>
+        <div class="view" id="view">
+          <canvas id="cv"></canvas>
+          <div class="v3" id="v3" hidden></div>
+          <div class="legend" id="legend"></div>
+          <div class="hint3" id="hint3" hidden>手指拖动转着看，两指缩放</div>
+          <div class="alarm" id="alarm" hidden></div>
+        </div>
+      </div>
+      <div class="prog" id="prog"><ol id="progList"></ol></div>
+      <div class="soft">
+        <button type="button" id="v3d" aria-pressed="false" hidden>3D</button>
+        <button type="button" id="vZoom" aria-pressed="true">局部</button>
+        <button type="button" id="vFull" aria-pressed="false">全貌</button>
+      </div>
+    </div>
+    <div class="ops">
+      <div class="opgrp"><div class="oplab">运行</div>
+        <div class="keys3">
+          <button type="button" class="key start" id="kStart"><i class="led"></i>循环启动</button>
+          <button type="button" class="key hold" id="kHold"><i class="led"></i>进给保持</button>
+          <button type="button" class="key" id="kSingle" aria-pressed="false"><i class="led"></i>单段</button>
+        </div>
+      </div>
+      <div class="opgrp"><div class="oplab">工件</div>
+        <div class="keys2">
+          <button type="button" class="key reset" id="kReset">复位</button>
+          <button type="button" class="key take" id="kTake" disabled>取下工件</button>
+        </div>
+      </div>
+      <div class="opgrp dials">
+        <div class="dial">
+          <button type="button" class="knob" id="knob" aria-label="模拟倍率，点一下换一档"><i class="ptr"></i></button>
+          <div class="scale"><span>30</span><span>50</span><span>100</span><span>200</span></div>
+          <div class="dlabel">倍率</div>
+        </div>
+        <div class="dial">
+          <button type="button" class="estop" id="kEstop" aria-label="急停"><span>急停</span></button>
+          <div class="dlabel">急停</div>
+        </div>
+      </div>
+    </div>
+    <select id="simSpeed" hidden><option value="30" selected>30</option><option value="50">50</option><option value="100">100</option><option value="200">200</option></select>
+    <p class="opnote">倍率只管看得快慢，工时按真实速度算。</p>
+   </div>
+    <div class="result" id="result" hidden>
+      <h2>这一件跑完了</h2>
+      <div class="stats">
+        <div class="stat"><div class="k">程序走完一遍</div><div class="v" id="rTime">–</div></div>
+        <div class="stat" hidden><div class="k">每件（含装卸）</div><div class="v" id="rEach">–</div></div>
+        <div class="stat" hidden><div class="k">一天能干</div><div class="v" id="rDay">–</div></div>
+      </div>
+      <div class="tsplit" id="rSplit"></div>
+      <p class="note">工时是估算：快移按上面填的速度，不算加减速，实际可能差一两成。</p>
+      <div id="checkBox" hidden>
+        <h2>尺寸核对（拿模拟车出来的零件对你填的尺寸）</h2>
+        <div class="tablewrap"><table><thead><tr><th>项目</th><th>要求</th><th>车出来</th><th>结论</th></tr></thead><tbody id="checkBody"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <form class="form" id="form" autocomplete="off" onsubmit="return false">
+    <div class="modes" role="group" aria-label="用法">
+      <button type="button" id="mGen" aria-pressed="true">按尺寸出程序</button>
+      <button type="button" id="mOwn" aria-pressed="false">自己写 / 导入程序</button>
+    </div>
+
+    <div id="genBox" class="form">
+    <div class="presets">
+      <span>先挑一个样子改：</span>
+    </div>
+    <input type="hidden" id="D0" value="220">
+    <details class="group" id="gShape" open>
+      <summary><b>零件形状</b><span class="sum" id="sumS"></span></summary>
+      <div class="gbody">
+        <p class="note">从端面往卡盘方向，一段一段加。每段外圆填三个数：<b>毛坯多粗、车成多粗、这段多长</b>。点草图上哪一段就改哪一段。</p>
+        <div class="skwrap"><canvas id="sk" aria-label="零件草图，点一段可以改它"></canvas></div>
+        <div class="blist" id="blist"></div>
+        <div class="addrow">
+          <button type="button" data-add="od">+ 外圆</button>
+          <button type="button" data-add="ch">+ 倒角</button>
+          <button type="button" data-add="tp">+ 锥度</button>
+          <button type="button" data-add="arc">+ 圆弧</button>
+          <button type="button" data-add="grv">+ 皮带槽</button>
+        </div>
+        <div class="bedit" id="bedit"></div>
+        <div class="errors" id="errors" hidden></div>
+        <div class="warns" id="warns" hidden></div>
+        <div class="photo">
+          <label class="btn photobtn"><input type="file" id="photo" accept="image/*" hidden>拍图纸或实物（照着填）</label>
+          <div class="photobox" id="photoBox" hidden><img id="photoImg" alt="你拍的图纸或零件"><button type="button" class="btn" id="photoOff">关掉照片</button></div>
+          <p class="note">照片只在你手机上显示，不上传。现在还不能自动认尺寸，对着照片填数就行。</p>
+        </div>
+      </div>
+    </details>
+    </div>
+
+    <details class="group" id="gTool">
+      <summary><b>刀架</b><span class="sum" id="sumT"></span></summary>
+      <div class="gbody">
+        <p class="note">四方刀架四个刀位，哪把刀装在几号位，点下面的数字改。默认自动排（1 号外圆刀，有槽 2 号切刀……）。</p>
+        <div class="turret" id="turret"></div>
+        <div id="trows"></div>
+        <div class="tbtns"><button type="button" class="btn" id="tAutoBtn">恢复自动排</button><span class="note" id="tMode"></span></div>
+        <p class="note">补号自动排，一个补号只给一把刀。切刀用两个补号（左刀尖、右刀尖）。想自己填补号，去"更多设置 → 吃刀、进给和刀"。</p>
+      </div>
+    </details>
+
+    <div id="ownBox" class="card" hidden>
+      <h3>毛坯</h3>
+      <p class="note">把你写好的程序贴到下面，或者点"导入文件"。毛坯尺寸填一下，车床上就能跑。</p>
+      <label class="field"><span>毛坯外径</span><input type="number" id="oD0" value="60" step="any" inputmode="decimal"></label>
+      <label class="field"><span>毛坯内孔 <small>实心填 0</small></span><input type="number" id="oHole" value="0" step="any" inputmode="decimal"></label>
+      <label class="field"><span>伸出卡盘长度</span><input type="number" id="oStick" value="70" step="any" inputmode="decimal"></label>
+      <label class="field"><span>端面余量 <small>车完的端面是 Z0</small></span><input type="number" id="oFs" value="2" step="any" inputmode="decimal"></label>
+      <p class="note">程序里几号刀是什么刀，在下面"更多设置 → 吃刀、进给和刀"里的刀号对应。</p>
+    </div>
+
+    <div class="card editor">
+      <div class="edhead"><h3>程序</h3><span class="edtag" id="edTag">按尺寸生成</span></div>
+      <div class="codebox"><textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="characters" aria-label="程序，可以直接改"></textarea></div>
+      <div class="edbtns">
+        <label class="btn"><input type="file" id="codeFile" accept=".txt,.nc,.cnc,.tap,.ptp,text/plain" hidden>导入程序文件</label>
+        <button type="button" class="btn" id="codeRegen">按尺寸重新生成</button>
+        <button type="button" class="btn" id="codeSample" hidden>放个例子</button>
+        <button type="button" class="btn" id="codeSample2" hidden>例子：子弹头（群友写的）</button>
+        <button type="button" class="btn" id="codeClear" hidden>清空</button>
+      </div>
+      <div class="codemsg" id="codeMsg"></div>
+      <div class="copyrow">
+        <label><input type="checkbox" id="ack"> <span>我知道：上机前在远离卡盘的地方对刀，先空跑一遍</span></label>
+        <button type="button" class="btn primary" id="copyBtn" disabled>复制程序</button>
+        <span class="copied" id="copied" hidden>已复制</span>
+      </div>
+      <textarea class="fallback" id="fallback" hidden readonly aria-label="程序文本"></textarea>
+    </div>
+
+    <div class="stat" id="stat"></div>
+    <details class="group more">
+      <summary><b>更多设置</b><span class="sum">毛坯内孔、伸出长度、车床、材料、内孔、吃刀进给，不改也能用</span></summary>
+      <div class="gbody">
+    <details class="group">
+      <summary><b>毛坯其他</b><span class="sum" id="sumB"></span></summary>
+      <div class="gbody">
+        <label class="field"><span>毛坯内孔 <small>实心填 0</small></span><input type="number" id="hole0" value="0" step="any" inputmode="decimal"></label>
+        <label class="field"><span>伸出卡盘长度 <small>填 0 自动算（零件长 + 10）</small></span><input type="number" id="stick" value="0" step="any" inputmode="decimal"></label>
+        <label class="field"><span>端面要车掉 <small>车完的端面是 Z0</small></span><input type="number" id="Fs" value="2" step="any" inputmode="decimal"></label>
+        <button type="button" class="done">填好了，收起</button>
+      </div>
+    </details>
+    <details class="group">
+      <summary><b>车床和材料</b><span class="sum" id="sumM"></span></summary>
+      <div class="gbody">
+        <label class="radio"><input type="radio" name="enc" id="enc1" value="1" checked> <span>有编码器（G99，每转走多少）</span></label>
+        <label class="radio"><input type="radio" name="enc" id="enc0" value="0"> <span>没编码器（G98，每分钟走多少）。主轴不转刀也会走，程序会先等主轴转起来</span></label>
+        <label class="field"><span>材料</span>
+          <select id="mat"><option value="ci" selected>铸铁（干车，不开冷却水）</option><option value="st">钢件（开冷却水）</option><option value="al">铝件（开冷却水）</option></select></label>
+        <label class="field"><span>数控系统</span>
+          <select id="sys"><option>广数</option><option>凯恩帝</option><option>华中</option><option>达丰</option><option>华兴</option><option>发那科</option><option>其他</option></select></label>
+        <div class="field2"><span>中拖板上能过多大直径 <small>工件比这个大，中拖板就会碰</small></span>
+          <div class="chipset" data-for="swS"><button type="button">300</button><button type="button">400</button><button type="button">500</button><button type="button">600</button><button type="button">700</button></div>
+          <input type="number" id="swS" value="300" step="any" inputmode="decimal" aria-label="中拖板上最大回转直径"></div>
+        <div class="field2"><span>床身上能过多大直径 <small>工件比这个大，根本装不上去</small></span>
+          <div class="chipset" data-for="swB"><button type="button">400</button><button type="button">500</button><button type="button">600</button><button type="button">800</button><button type="button">1000</button></div>
+          <input type="number" id="swB" value="500" step="any" inputmode="decimal" aria-label="床身上最大回转直径"></div>
+        <label class="field"><span>改装加高了多少 <small>没加高填 0</small></span><input type="number" id="raise" value="0" step="any" inputmode="decimal"></label>
+        <p class="note">看车床铭牌：CA6140 一般是床身上 400、刀架上 210。普车改加高过的，能过的直径会大很多，按实际填。</p>
+        <label class="field"><span>最高转速</span><input type="number" id="maxRpm" value="1200" step="any" inputmode="decimal"></label>
+        <label class="field"><span>快移速度 <small>毫米/分，算工时用</small></span><input type="number" id="rapid" value="4000" step="any" inputmode="decimal"></label>
+        <label class="field"><span>换刀点 X <small>直径，填 0 自动（毛坯 +20）</small></span><input type="number" id="chgX" value="0" step="any" inputmode="decimal"></label>
+        <label class="field"><span>换刀点 Z <small>填 0 自动（小件 50，大件 100）</small></span><input type="number" id="chgZ" value="0" step="any" inputmode="decimal"></label>
+        <label class="btn photobtn"><input type="file" id="panelPhoto" accept="image/*" hidden>拍一张你的数控面板</label>
+        <button type="button" class="done">填好了，收起</button>
+      </div>
+    </details>
+    <details class="group">
+      <summary><b>内孔</b><span class="sum" id="sumH"></span></summary>
+      <div class="gbody">
+        <label class="radio"><input type="checkbox" id="bOn"> <span>要车内孔（毛坯得有孔）</span></label>
+        <label class="field"><span>成品孔径</span><input type="number" id="bD" value="60" step="any" inputmode="decimal"></label>
+        <label class="field"><span>孔深 <small>从端面往里</small></span><input type="number" id="bL" value="40" step="any" inputmode="decimal"></label>
+        <label class="radio"><input type="checkbox" id="bFin"> <span>孔公差紧（比如装轴承），要精镗 <small class="sub">粗镗刀留精车量，换精镗刀再走一刀。不勾就是粗镗刀直接镗到尺寸</small></span></label>
+        <button type="button" class="done">填好了，收起</button>
+      </div>
+    </details>
+    <details class="group">
+      <summary><b>吃刀、进给和刀</b><span class="sum" id="sumF"></span></summary>
+      <div class="gbody">
+        <p class="note"><b>铸铁件</b>：端面、外圆、内孔都粗扒一刀成，下面的"每刀最多"只管钢件、铝件。皮带轮不用精车，装轴承的孔才勾精镗。<br>每段默认一刀车到尺寸（余量大就粗车几刀，最后一刀到尺寸）。公差紧的段，在"零件形状"里点那一段，勾"要精车"。</p>
+        <label class="field"><span>外圆每刀最多 <small>直径</small></span><input type="number" id="apOD" value="2" step="any" inputmode="decimal"></label>
+        <label class="field"><span>端面每刀最多 <small>从外往里车</small></span><input type="number" id="apF" value="1" step="any" inputmode="decimal"></label>
+        <label class="field"><span>内孔每刀最多 <small>直径</small></span><input type="number" id="apIn" value="2" step="any" inputmode="decimal"></label>
+        <label class="field"><span>精车留量 <small>直径。只有标了要精车的段、要精镗的孔才留</small></span><input type="number" id="allow" value="0.1" step="any" inputmode="decimal"></label>
+        <p class="note">进给单位：<b class="fu">毫米/转</b>（没编码器的车床自动换成毫米/分，直接填你平时给的 F）</p>
+        <label class="field"><span>车端面</span><input type="number" id="fFace" value="0.6" step="any" inputmode="decimal"></label>
+        <label class="field"><span>粗车外圆</span><input type="number" id="fR" value="0.6" step="any" inputmode="decimal"></label>
+        <label class="field"><span>车到尺寸那一刀 <small>粗车刀最后一刀、精车刀、精镗刀都用这个</small></span><input type="number" id="fF" value="0.12" step="any" inputmode="decimal"></label>
+        <label class="field"><span>拉台阶、收刀</span><input type="number" id="fStep" value="0.5" step="any" inputmode="decimal"></label>
+        <label class="field"><span>粗镗内孔</span><input type="number" id="fIn" value="0.3" step="any" inputmode="decimal"></label>
+        <label class="field"><span>扎槽</span><input type="number" id="fPl" value="0.33" step="any" inputmode="decimal"></label>
+        <label class="field"><span>扩槽</span><input type="number" id="fEx" value="0.4" step="any" inputmode="decimal"></label>
+        <label class="field"><span>切刀宽 <small>卡尺量的</small></span><input type="number" id="gw" value="4" step="any" inputmode="decimal"></label>
+        <p class="note">没编码器时程序自动把每转进给换成每分钟进给。</p>
+        <div class="tools"><b>刀号（前两位刀位，后两位补号）</b>
+          <label class="radio" id="tAutoRow"><input type="checkbox" id="tAuto" checked> <span>按用到的刀自动排 <small class="sub">1 号粗车，有皮带槽 2 号切槽，剩下的往后排。想自己定就去掉勾</small></span></label>
+          <label class="field" data-tk="R"><span>粗车外圆刀 <small>车端面、粗车，没标精车的段也是它车到尺寸</small></span><input type="text" id="tR" value="0101" inputmode="numeric" maxlength="4"></label>
+          <label class="field" data-tk="F"><span>精车外圆刀 <small>只车标了"要精车"的段。填得和粗车刀一样就不换刀</small></span><input type="text" id="tF" value="0202" inputmode="numeric" maxlength="4"></label>
+          <label class="field" data-tk="GL"><span>切槽刀 左刀尖</span><input type="text" id="tGL" value="0202" inputmode="numeric" maxlength="4"></label>
+          <label class="field" data-tk="GR"><span>切槽刀 右刀尖 <small>同一个刀位，换个补号</small></span><input type="text" id="tGR" value="0203" inputmode="numeric" maxlength="4"></label>
+          <label class="field" data-tk="B"><span>粗镗刀 <small>不精镗时它直接镗到尺寸</small></span><input type="text" id="tB" value="0303" inputmode="numeric" maxlength="4"></label>
+          <label class="field" data-tk="BF"><span>精镗刀 <small>填得和粗镗刀一样就不换刀</small></span><input type="text" id="tBF" value="0404" inputmode="numeric" maxlength="4"></label>
+          <p class="note" id="tNote">一个补号只能给一把刀用。切槽右刀尖用了 03，后面的刀补号就从 04 往后排。</p>
+        </div>
+        <button type="button" class="done">填好了，收起</button>
+      </div>
+    </details>
+    <details class="group" hidden>
+      <summary><b>算账</b><span class="sum" id="sumC"></span></summary>
+      <div class="gbody">
+        <label class="field"><span>每件装卸时间 <small>秒</small></span><input type="number" id="load" value="60" step="any" inputmode="decimal"></label>
+        <label class="field"><span>每天干几小时</span><input type="number" id="hours" value="8" step="any" inputmode="decimal"></label>
+        <button type="button" class="done">填好了，收起</button>
+      </div>
+    </details>
+      </div>
+    </details>
+    <div class="rpm" id="rpmInfo"></div>
+  </form>
+</div>
+
+<section class="pane" id="tab-calc" hidden>
+  <p class="lead">车间常用的几样算数，填数就出结果。</p>
+  <div class="calcs">
+    <div class="card">
+      <h3>转速和线速度</h3>
+      <label class="field"><span>工件直径</span><input type="number" id="cD" value="214" step="any" inputmode="decimal"></label>
+      <label class="field"><span>转速 <small>转/分</small></span><input type="number" id="cS" value="95" step="any" inputmode="decimal"></label>
+      <div class="out" id="oV"></div>
+      <label class="field"><span>想要的线速度 <small>米/分</small></span><input type="number" id="cV" value="64" step="any" inputmode="decimal"></label>
+      <div class="out" id="oS"></div>
+    </div>
+    <div class="card">
+      <h3>每转进给换成每分钟进给</h3>
+      <p class="note">没编码器的车床用 G98，要按每分钟给。</p>
+      <label class="field"><span>每转走 <small>毫米/转</small></span><input type="number" id="fF1" value="0.25" step="any" inputmode="decimal"></label>
+      <label class="field"><span>转速</span><input type="number" id="fS1" value="240" step="any" inputmode="decimal"></label>
+      <div class="out" id="oF"></div>
+    </div>
+    <div class="card">
+      <h3>切刀磨了以后怎么补</h3>
+      <p class="note">T0202 左刀尖对 Z，T0203 是右刀尖。磨掉多少，两边各补一半，槽不偏。</p>
+      <label class="field"><span>原来刀宽</span><input type="number" id="kW0" value="4" step="any" inputmode="decimal"></label>
+      <label class="field"><span>磨完刀宽 <small>卡尺量</small></span><input type="number" id="kW1" value="3.76" step="any" inputmode="decimal"></label>
+      <div class="out" id="oK"></div>
+    </div>
+    <div class="card">
+      <h3>槽车出来宽了窄了</h3>
+      <label class="field"><span>要求槽宽</span><input type="number" id="qW0" value="13" step="any" inputmode="decimal"></label>
+      <label class="field"><span>量出来槽宽</span><input type="number" id="qW1" value="12.9" step="any" inputmode="decimal"></label>
+      <div class="out" id="oQ"></div>
+    </div>
+    <div class="card">
+      <h3>锥度</h3>
+      <label class="field"><span>大头直径</span><input type="number" id="tD" value="40" step="any" inputmode="decimal"></label>
+      <label class="field"><span>小头直径</span><input type="number" id="td" value="30" step="any" inputmode="decimal"></label>
+      <label class="field"><span>锥长</span><input type="number" id="tL" value="50" step="any" inputmode="decimal"></label>
+      <div class="out" id="oT"></div>
+    </div>
+    <div class="card">
+      <h3>普通外螺纹（公制）</h3>
+      <label class="field"><span>大径</span><input type="number" id="hD" value="30" step="any" inputmode="decimal"></label>
+      <label class="field"><span>螺距</span><input type="number" id="hP" value="2" step="any" inputmode="decimal"></label>
+      <div class="out" id="oH"></div>
+      <p class="note">按车间常用的经验算法：牙深约 0.65 倍螺距，底径约等于大径减 1.3 倍螺距。精确尺寸以图纸和螺纹规为准。</p>
+    </div>
+    <div class="card">
+      <h3>断电后所有刀 Z 一起补</h3>
+      <p class="note">拿一把对好的刀，轻轻碰一下已经车好的端面，看屏幕上 Z 显示多少（本来应该是 0）。</p>
+      <label class="field"><span>碰端面时 Z 显示</span><input type="number" id="pz" value="0.05" step="any" inputmode="decimal"></label>
+      <label class="field"><span>一共几把刀</span><input type="number" id="pn" value="4" step="1" inputmode="numeric"></label>
+      <div class="out" id="oP"></div>
+    </div>
+    <div class="card">
+      <h3>拐角加 R：求两个切点</h3>
+      <p class="note">锥度接外圆、外圆接端面，中间要倒个圆角。按图填三个点（X 都填直径，Z 是负数就填完数再按 ±）：前一段的起点、两段的拐点、后一段的终点，再填 R。</p>
+      <div class="pt"><b>起点</b><label class="field"><span>X</span><input type="number" id="aAx" value="20" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="aAz" value="0" step="any" inputmode="decimal"></label></div>
+      <div class="pt"><b>拐点</b><label class="field"><span>X</span><input type="number" id="aBx" value="30" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="aBz" value="-15" step="any" inputmode="decimal"></label></div>
+      <div class="pt"><b>终点</b><label class="field"><span>X</span><input type="number" id="aCx" value="30" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="aCz" value="-40" step="any" inputmode="decimal"></label></div>
+      <label class="field"><span>圆角 R</span><input type="number" id="aR" value="5" step="any" inputmode="decimal"></label>
+      <div class="out" id="oA"></div>
+    </div>
+    <div class="card">
+      <h3>圆弧接直线：求切点</h3>
+      <p class="note">球头、圆头接锥度用。填圆弧的圆心和 R，再填直线另一头的点，算直线跟圆弧正好相切的那个点（外圆这边的）。</p>
+      <div class="pt"><b>圆心</b><label class="field"><span>X</span><input type="number" id="bCx" value="0" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="bCz" value="-10" step="any" inputmode="decimal"></label></div>
+      <label class="field"><span>圆弧 R</span><input type="number" id="bR" value="10" step="any" inputmode="decimal"></label>
+      <div class="pt"><b>直线另一头</b><label class="field"><span>X</span><input type="number" id="bPx" value="30" step="any" inputmode="decimal"></label><label class="field"><span>Z</span><input type="number" id="bPz" value="-40" step="any" inputmode="decimal"></label></div>
+      <div class="out" id="oB"></div>
+    </div>
+  </div>
+</section>
+
+<section class="pane" id="tab-fix" hidden>
+  <p class="lead">修车床常碰到的报警和毛病，按类找，或者直接搜报警号、搜现象。</p>
+  <div class="search"><input type="search" id="fq" placeholder="搜报警号或现象，比如 1001、刀架、OC、乱牙" aria-label="搜索维修资料"></div>
+  <div class="chips" id="fcats"></div>
+  <p class="note" id="fcount"></p>
+  <div class="flist" id="flist"></div>
+  <p class="note" id="fempty" hidden>没找到。换个说法试试，比如"不转""报警""尺寸"。</p>
+  <div class="srcnote">
+    <p>说明：广数报警按 980TD/TDb/TDc 整理；伺服 Err 编号按国产驱动器常见编号整理（广数 DA98 等多数相近）；变频器分通用、汇川、台达。不同型号、不同版本可能有出入，以机床随机说明书为准。标"经验"的是车间常见的排查思路，不是厂家原话。动电气之前先断电。</p>
+    <p>资料来源：<a href="https://www.mfgrobots.com/Article/equipment/cnc/46605.html" target="_blank" rel="noopener">广数980报警号整理</a> ·
+      <a href="https://www.paycnc.com/info/1001and1002alarmongsk980tdcnccontroller_i2470.html" target="_blank" rel="noopener">1001/1002 报警处理</a> ·
+      <a href="https://www.maigoo.com/zhishi/156604.html" target="_blank" rel="noopener">电动刀架常见故障</a> ·
+      <a href="https://news.sina.cn/sx/2026-04-03/detail-inhtepte0490680.d.html" target="_blank" rel="noopener">变频器故障代码</a> ·
+      <a href="https://www.sinodrive.com/jishufenxiang/20251223805.html" target="_blank" rel="noopener">汇川 MD500 故障代码</a> ·
+      <a href="https://industrial-fixes.pages.dev/posts/delta-vfd-fault-codes" target="_blank" rel="noopener">台达变频器故障代码</a> ·
+      <a href="https://evtatech.com/73.html" target="_blank" rel="noopener">伺服驱动器常见故障</a> ·
+      <a href="http://m.gkong.com/bbs/468459.ashx" target="_blank" rel="noopener">DA98 Err4 讨论</a> ·
+      <a href="https://b2bwiki.baidu.com/article/d0rb3h1ftjsk5qv9vlvg" target="_blank" rel="noopener">凯恩帝准备未绪</a> ·
+      <a href="https://b2bwiki.baidu.com/article/730207607379656705" target="_blank" rel="noopener">凯恩帝 41 号报警</a> ·
+      <a href="https://www.paycnc.com/info/parameters-gsk980tdb-gsk980tdc-gsk980tda_i2922.html" target="_blank" rel="noopener">广数常用参数</a> ·
+      <a href="http://gskcnc.com/Support/GSK980TD.pdf" target="_blank" rel="noopener">广数980TD说明书（英文）</a> ·
+      <a href="https://paycnc.com/info/how-to-reset-workpiece-counting_i0693.html" target="_blank" rel="noopener">件数清零</a> ·
+      <a href="https://www.kaiji.com/newsshow-11.html" target="_blank" rel="noopener">断电后怎么处理</a> ·
+      <a href="https://damodev.csdn.net/6a43882010ee7a33f285005e.html" target="_blank" rel="noopener">绝对值和增量编码器</a> ·
+      <a href="https://pdf.dfcfw.com/pdf/H3_AP202506161692028423_1.pdf" target="_blank" rel="noopener">国产数控系统研报</a></p>
+  </div>
+</section>
+
+<footer class="foot">
+  <span>孙少 制作 · 第 3.3 版 · 2026 年 10 月</span>
+  <button type="button" class="fbk" id="fbk">反馈</button>
+  <span class="fbktip" id="fbkTip" hidden>有意见微信找孙少</span>
+  <p class="vernote">这个版本不会自动更新，要最新版本请联系作者孙少</p>
+</footer>
+<script>
+(function(){
+  /* 有了问卷链接，填在这里，点"反馈"就直接打开问卷 */
+  var FEEDBACK_URL='https://wj.qq.com/s2/28410504/3g8z/';
+  var b=document.getElementById('fbk'),t=document.getElementById('fbkTip');
+  if(FEEDBACK_URL){var a=document.createElement('a');a.href=FEEDBACK_URL;a.target='_blank';a.rel='noopener';a.className='fbk';a.id='fbk';a.textContent='反馈';b.replaceWith(a);}
+  else b.onclick=function(){t.hidden=!t.hidden;};
+})();
+</script>
+<script src="three.min.js"></script>
+<script src="OrbitControls.js"></script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const IDS=['maxRpm','rapid','chgX','chgZ','swS','swB','raise','D0','hole0','stick','Fs','bD','bL','apOD','apF','apIn','allow','fR','fF','fFace','fStep','fIn','fPl','fEx','gw','load','hours'];
+function fmt(v){let r=Math.round(v*1000)/1000;if(Object.is(r,-0)||Math.abs(r)<0.0005)r=0;let s=String(r);if(!s.includes('.'))s+='.';return s;}
+function mmss(sec){sec=Math.max(0,Math.round(sec));const m=Math.floor(sec/60),s=sec%60;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');}
+const n2=v=>String(Math.round(v*1000)/1000);
+
+/* 经验转速表：外圆（铸铁件）、内孔 */
+const OUT_PTS=[[50,350],[214,95],[600,40],[735,35]];
+const IN_PTS=[[40,230],[80,130]];
+function tbl(P,D){D=Math.max(D,1);
+  if(D<=P[0][0]) return P[0][1]*P[0][0]/D;
+  const L=P[P.length-1]; if(D>=L[0]) return L[1]*L[0]/D;
+  for(let i=0;i<P.length-1;i++){const a=P[i],b=P[i+1];if(D>=a[0]&&D<=b[0])return a[1]+(b[1]-a[1])*(D-a[0])/(b[0]-a[0]);}
+  return L[1];}
+/* 材料：表里是铸铁（干车）。钢件加冷却水，刀尖凉得住，转速提高；铝件更高（暂定，等实测校准） */
+let MATK=1;
+const rOut=(D,max,k)=>Math.max(1,Math.min(max,Math.round(tbl(OUT_PTS,D)*(k||1)*MATK)));
+const rIn=(D,max,k)=>Math.max(1,Math.min(max,Math.round(tbl(IN_PTS,D)*(k||1)*MATK)));
+
+/* ---------------- 积木 ---------------- */
+const BT={od:'外圆',ch:'倒角',tp:'锥度',arc:'圆弧',grv:'皮带槽'};
+const PRESETS={
+  pulley:{n:'皮带轮 Φ214',v:{hole0:0,stick:0,Fs:2},bOn:false,mat:'ci',seg:[{t:'ch',c:1},{t:'od',bk:220,d:214,L:45},{t:'grv',n:2,B:13,b:5,h:10,e:14,p:15}]},
+  pulley600:{n:'大皮带轮 Φ600',v:{hole0:0,stick:0,Fs:2},mach:{swS:700,swB:900},bOn:false,mat:'ci',seg:[{t:'ch',c:2},{t:'od',bk:606,d:600,L:70},{t:'grv',n:3,B:17,b:8,h:17,e:14,p:21}]},
+  dpulley:{n:'双联皮带轮',v:{hole0:0,stick:0,Fs:2},bOn:false,mat:'ci',seg:[{t:'ch',c:1},{t:'od',bk:126,d:120,L:40},{t:'grv',n:2,B:13,b:5,h:10,e:12,p:16},{t:'od',bk:206,d:200,L:50},{t:'grv',n:3,B:13,b:5,h:10,e:10,p:15}]},
+  shaft:{n:'台阶轴',v:{hole0:0,stick:0,Fs:2},bOn:false,mat:'st',seg:[{t:'ch',c:1},{t:'od',bk:55,d:30,L:15},{t:'arc',bk:55,d:40,L:5,R:5,cv:1},{t:'od',bk:55,d:40,L:20,f:1},{t:'tp',bk:55,d:50,L:10},{t:'od',bk:55,d:50,L:15}]},
+  pin:{n:'光轴',v:{hole0:0,stick:0,Fs:2},bOn:false,mat:'st',seg:[{t:'ch',c:1},{t:'od',bk:35,d:30,L:60}]},
+  taper:{n:'锥度轴',v:{hole0:0,stick:0,Fs:2},bOn:false,mat:'st',seg:[{t:'ch',c:1},{t:'od',bk:45,d:25,L:15},{t:'tp',bk:45,d:38,L:25},{t:'od',bk:45,d:40,L:15}]},
+  sleeve:{n:'带孔的套',v:{hole0:40,stick:0,Fs:2,bD:60,bL:40},bOn:true,bFin:true,mat:'st',seg:[{t:'ch',c:1},{t:'od',bk:100,d:90,L:45,f:1}]},
+  flange:{n:'法兰盘',v:{hole0:45,stick:0,Fs:2,bD:52,bL:30},bOn:true,bFin:false,mat:'ci',seg:[{t:'ch',c:1},{t:'od',bk:106,d:100,L:15},{t:'od',bk:166,d:160,L:15}]},
+};
+let MACH_SAVE=null,CUR_PRE='pulley';
+let SEG=JSON.parse(JSON.stringify(PRESETS.pulley.seg)), SEL=1;
+/* 这一块要不要精车：倒角跟着后面那段外圆走 */
+const finSeg=i=>{const s=SEG[i];if(!s)return false;if(s.t==='ch')return !!(SEG[i+1]&&SEG[i+1].f);return !!s.f;};
+const CANFIN={od:1,tp:1,arc:1};
+
+function profile(p){
+  const errs=[],prims=[],grooves=[],blank=[];let z=0,r=null,lastOd=null,chUsed=0,odStart=null;
+  if(!SEG.length) errs.push('零件形状还是空的，先加一块外圆');
+  else if(!['od','ch'].includes(SEG[0].t)) errs.push('第 1 块要用外圆或倒角（从端面开始）');
+  SEG.forEach((s,i)=>{const n=i+1;
+    if(s.t==='od'){
+      if(!(s.d>0&&s.L>0)){errs.push(`第${n}块外圆：直径和长度要大于 0`);return;}
+      const rr=s.d/2; const zr=chUsed?odStart:z;
+      if(r===null) r=rr;
+      if(rr<r-1e-9) errs.push(`第${n}块外圆比前面细了。往卡盘方向变细的要掉头车，这一版先不支持`);
+      if(Math.abs(rr-r)>1e-9) prims.push({k:'line',z1:z,r1:r,z2:z,r2:rr,seg:i});
+      const len=s.L-chUsed;
+      if(len<=0){errs.push(`第${n}块外圆：长度要比前面的倒角长`);return;}
+      prims.push({k:'line',z1:z,r1:rr,z2:z-len,r2:rr,seg:i});
+      z-=len; r=rr; lastOd={i,zr,zl:z,d:s.d}; chUsed=0; odStart=null;
+      if(!(s.bk>0))errs.push(`第${n}块外圆：毛坯多粗要填`);else if(s.bk<s.d-1e-9)errs.push(`第${n}块外圆：毛坯 Φ${n2(s.bk)} 比车成的 Φ${n2(s.d)} 还细，毛坯要比成品粗`);
+      blank.push({z1:zr,z2:z,b:s.bk||s.d});
+    }else if(s.t==='ch'){
+      const nx=SEG[i+1];
+      if(!nx||nx.t!=='od'){errs.push(`第${n}块倒角：后面要接一段外圆`);return;}
+      if(!(s.c>0)){errs.push(`第${n}块倒角：大小要大于 0`);return;}
+      const r2=nx.d/2,r1=r2-s.c;
+      if(r1<=0){errs.push(`第${n}块倒角太大了`);return;}
+      if(r===null) r=r1;
+      if(r1<r-1e-9) errs.push(`第${n}块倒角：比前面细了`);
+      if(Math.abs(r1-r)>1e-9) prims.push({k:'line',z1:z,r1:r,z2:z,r2:r1,seg:i});
+      odStart=z; prims.push({k:'line',z1:z,r1:r1,z2:z-s.c,r2:r2,seg:i});
+      z-=s.c; r=r2; chUsed=s.c;
+    }else if(s.t==='tp'){
+      if(r===null) return;
+      if(!(s.L>0&&s.d>0)){errs.push(`第${n}块锥度：直径和锥长要大于 0`);return;}
+      if(s.d/2<r-1e-9){errs.push(`第${n}块锥度：大头直径要比前面大`);return;}
+      const bk=s.bk>0?s.bk:s.d; if(bk<s.d-1e-9)errs.push(`第${n}块锥度：毛坯比大头还细`);
+      blank.push({z1:z,z2:z-s.L,b:bk});
+      prims.push({k:'line',z1:z,r1:r,z2:z-s.L,r2:s.d/2,seg:i}); z-=s.L; r=s.d/2; lastOd=null;
+    }else if(s.t==='arc'){
+      if(r===null) return;
+      if(!(s.L>0&&s.d>0&&s.R>0)){errs.push(`第${n}块圆弧：直径、长度、半径要大于 0`);return;}
+      const r2=s.d/2; if(r2<r-1e-9){errs.push(`第${n}块圆弧：车到的直径要比前面大`);return;}
+      const z2=z-s.L, c=Math.hypot(s.L,r2-r);
+      if(s.R<c/2-1e-9){errs.push(`第${n}块圆弧：半径太小，至少要 ${n2(Math.ceil(c/2*100)/100)}`);return;}
+      const vz=(z2-z)/c, vr=(r2-r)/c, nz=-vr, nr=vz, h=Math.sqrt(Math.max(0,s.R*s.R-c*c/4)), mz=(z+z2)/2, mr=(r+r2)/2;
+      const sg=s.cv?1:-1, cz=mz+sg*h*nz, cr=mr+sg*h*nr;
+      const pr={k:'arc',z1:z,r1:r,z2,r2,R:s.R,ccw:!!s.cv,cz,cr,seg:i};
+      let ok=true,prev=r; for(let k=1;k<=24;k++){const zz=z-s.L*k/24, rv=arcR(pr,zz); if(!(rv>=prev-1e-6)||rv>r2+1e-6){ok=false;break;} prev=rv;}
+      if(!ok){errs.push(`第${n}块圆弧：中间比两头还鼓或还凹，这一版先不支持，改一下方向或半径`);return;}
+      const bk=s.bk>0?s.bk:s.d; if(bk<s.d-1e-9)errs.push(`第${n}块圆弧：毛坯比车到的直径还细`);
+      blank.push({z1:z,z2,b:bk});
+      prims.push(pr); z=z2; r=r2; lastOd=null;
+    }else if(s.t==='grv'){
+      const prevT=SEG[i-1]&&SEG[i-1].t;
+      if(!lastOd||prevT!=='od'){errs.push(`第${n}块皮带槽：要紧跟在一段外圆后面，槽开在那段外圆上`);return;}
+      const g={...s,Dg:lastOd.d,zr:lastOd.zr,zl:lastOd.zl,seg:i,n:Math.round(s.n||0)};
+      if(g.n<1||g.n>12) errs.push(`第${n}块皮带槽：槽数填 1 到 12`);
+      if(p.gw<=0) errs.push('切刀宽要大于 0');
+      if(g.b<p.gw) errs.push(`第${n}块皮带槽：槽底比切刀窄，换窄点的切刀`);
+      if(g.B<g.b) errs.push(`第${n}块皮带槽：槽口要比槽底宽`);
+      if(!(g.h>0)||g.Dg-2*g.h<=10) errs.push(`第${n}块皮带槽：槽深不对`);
+      if(g.n>1&&g.p<g.B) errs.push(`第${n}块皮带槽：槽距比槽口小，槽会重叠`);
+      const first=g.zr-g.e, last=g.zr-(g.e+(g.n-1)*g.p);
+      if(first+g.B/2>g.zr+1e-9) errs.push(`第${n}块皮带槽：第一道槽离这段外圆的右边太近`);
+      if(last-g.B/2<g.zl-1e-9) errs.push(`第${n}块皮带槽：最后一道槽超出这段外圆了`);
+      grooves.push(g);
+    }
+  });
+  const zEnd=z;
+  const ds=prims.map(q=>Math.max(q.r1,q.r2)*2);
+  const bMax=blank.length?Math.max(...blank.map(q=>q.b)):0;
+  return {errs,prims,grooves,blank,bMax,zEnd,dMin:prims.length?prims[0].r1*2:0,dMax:ds.length?Math.max(...ds):0};
+}
+function blankAt(PR,z){const B=PR.blank;if(!B.length)return 0;if(z>=B[0].z1)return B[0].b/2;for(const q of B)if(z<=q.z1+1e-9&&z>=q.z2-1e-9)return q.b/2;return B[B.length-1].b/2;}
+function arcR(q,z){const t=q.R*q.R-(z-q.cz)*(z-q.cz);const s=Math.sqrt(Math.max(0,t));return q.ccw?q.cr+s:q.cr-s;}
+function rp(PR,z){for(const q of PR.prims){if(q.z1===q.z2)continue;if(z<=q.z1+1e-9&&z>=q.z2-1e-9){if(q.k==='arc')return arcR(q,z);return q.r1+(q.r2-q.r1)*(q.z1-z)/(q.z1-q.z2);}}return null;}
+/* 粗车刀车到哪：没标精车的段车到尺寸，标了的多留精车量（半径加 allow/2） */
+function rpo(PR,z,allow){for(const q of PR.prims){if(q.z1===q.z2)continue;if(z<=q.z1+1e-9&&z>=q.z2-1e-9){const o=finSeg(q.seg)?allow/2:0;if(q.k==='arc')return arcR(q,z)+o;return q.r1+(q.r2-q.r1)*(q.z1-z)/(q.z1-q.z2)+o;}}return null;}
+function hasStock(PR,q){if(q.z1===q.z2)return false;for(let t=0;t<=8;t++){const z=q.z1+(q.z2-q.z1)*t/8;const pv=q.k==='arc'?arcR(q,z):q.r1+(q.r2-q.r1)*t/8;if(blankAt(PR,z)>pv+0.005)return true;}return false;}
+function lastCut(PR){let li=-1;PR.prims.forEach((q,i)=>{if(hasStock(PR,q))li=i;});return li;}
+
+function read(){
+  const p={};for(const id of IDS)p[id]=parseFloat($(id).value);
+  p.g99=$('enc1').checked; p.mat=$('mat').value; p.cool=p.mat!=='ci'; p.bOn=$('bOn').checked; p.bFin=p.bOn&&$('bFin').checked; p.sys=$('sys').value;
+  const e=[],fixes=[];
+  for(const id of IDS) if(!isFinite(p[id])){e.push('有空着没填的格子，填上数字');break;}
+  if(e.length) return {p,errors:e,fixes,warn:[],PR:null};
+  const PR=profile(p); e.push(...PR.errs);
+  p.D0=PR.bMax||100; $('D0').value=p.D0;
+  p.autoStick=!(p.stick>0); if(p.autoStick&&PR.prims.length) p.stick=Math.ceil(-PR.zEnd+10); if(!(p.stick>0)) p.stick=50;
+  const sS=p.swS+2*p.raise, sB=p.swB+2*p.raise; p.sS=sS; p.sB=sB;
+  if(p.D0>sB) e.push(`毛坯 Φ${n2(p.D0)} 比床身上能过的 Φ${n2(sB)} 还大，装不上这台车床`);
+  if(PR.prims.length){
+    if(p.stick< -PR.zEnd+5){e.push(`零件长 ${n2(-PR.zEnd)}，伸出卡盘只有 ${n2(p.stick)}：伸出要比零件长 5 毫米以上，不然刀碰卡爪`);fixes.push(['伸出长度改成自动','stick',0]);}
+  }
+  if(p.hole0<0||(p.hole0>0&&p.hole0>=PR.dMin-6)) e.push('毛坯内孔太大了，比零件最细的地方还粗');
+  if(p.Fs<0) e.push('端面车掉的量不能是负数');
+  if(p.apOD<=0||p.apF<=0||p.apIn<=0) e.push('每刀吃刀量要大于 0');
+  if(p.allow<0||p.allow>1) e.push('精车留量填 0 到 1');
+  for(const k of ['fR','fF','fFace','fStep','fIn','fPl','fEx']) if(p[k]<=0){e.push('进给要大于 0');break;}
+  if(p.maxRpm<=0||p.rapid<=0) e.push('最高转速和快移速度要大于 0');
+  if(!(p.chgX>0))p.chgX=Math.ceil(((PR.bMax||100)+20)/10)*10;if(!(p.chgZ>0))p.chgZ=(PR.bMax||100)<150?50:100;
+  /* 换刀点：填 0 自动跟着毛坯走（小件不退那么远）；填了的比毛坯小就临时加大 */
+  let chgNote='';const autoX=Math.ceil((p.D0+20)/10)*10,autoZ=p.D0<150?50:100;
+  if(!(p.chgX>0))p.chgX=autoX;else if(p.chgX<p.D0+10){chgNote=`换刀点 X${n2(p.chgX)} 比毛坯小，这次自动用 X${autoX}（换刀不碰）`;p.chgX=autoX;}
+  if(!(p.chgZ>0))p.chgZ=autoZ;
+  if(p.chgZ<p.Fs+10) e.push('换刀点 Z 要离端面远一点（至少 10）');
+  // 要精车的段（只算真要车的）
+  PR.lastI=lastCut(PR);
+  p.finIdx=PR.prims.map((q,i)=>i).filter(i=>i<=PR.lastI&&PR.prims[i].z1!==PR.prims[i].z2&&finSeg(PR.prims[i].seg));
+  p.needF=p.finIdx.length>0;
+  // 刀号：自动排 = 1 号粗车，有槽 2 号切槽（左 02 右 03），精车、粗镗、精镗往后排
+  const need={R:1,F:p.needF,G:PR.grooves.length>0,B:p.bOn,BF:p.bFin};LASTNEED=need;
+  p.tAuto=$('tAuto').checked&&MODE==='gen';
+  if(p.tAuto){const pad=n=>String(n).padStart(2,'0');let pos=2,off=2,cnt=1;
+    $('tR').value='0101';
+    if(need.G){$('tGL').value='0202';$('tGR').value='0203';pos=3;off=4;cnt++;}
+    for(const [k,id] of [['F','tF'],['B','tB'],['BF','tBF']]){if(!need[k])continue;cnt++;if(pos>4){$(id).value='';continue;}const o=Math.max(pos,off);$(id).value=pad(pos)+pad(o);pos++;off=o+1;}
+    if(cnt>4){e.push(`这个零件要用 ${cnt} 把刀，四方刀架只有 4 个刀位，装不下`);
+      if(p.bFin)fixes.push(['孔不精镗了，粗镗刀直接镗到尺寸','bFin',false]);
+      fixes.push(['改成自己排刀号（精车、精镗可以和粗车、粗镗用同一把）','tAuto',false]);}}
+  const TT={R:['粗车外圆刀',$('tR').value.trim(),'od'],F:['精车外圆刀',$('tF').value.trim(),'od'],GL:['切槽刀左刀尖',$('tGL').value.trim(),'grv'],GR:['切槽刀右刀尖',$('tGR').value.trim(),'grv'],B:['粗镗刀',$('tB').value.trim(),'bore'],BF:['精镗刀',$('tBF').value.trim(),'bore']};
+  const used=k=>k==='R'||(k==='F'&&need.F)||((k==='GL'||k==='GR')&&need.G)||(k==='B'&&need.B)||(k==='BF'&&need.BF);
+  p.used=used;
+  p.T={};p.tmap={};const offUse={};
+  for(const k in TT){const [nm,v,ty]=TT[k];if(!used(k)||(p.tAuto&&!v))continue;
+    if(!/^\d{4}$/.test(v)||+v.slice(0,2)<1){e.push(`${nm}刀号填 4 位数，比如 0101`);continue;}
+    p.T[k]=v;const tn=+v.slice(0,2),of=+v.slice(2);
+    if(p.tmap[tn]&&p.tmap[tn]!==ty)e.push(`${tn} 号刀位不能又当${{od:'外圆刀',grv:'切槽刀',bore:'内孔刀'}[p.tmap[tn]]}又当${{od:'外圆刀',grv:'切槽刀',bore:'内孔刀'}[ty]}`);
+    p.tmap[tn]=ty;
+    if(of>0&&offUse[of]&&offUse[of][0]!==tn){e.push(`补号 ${String(of).padStart(2,'0')} 被 ${offUse[of][0]} 号刀和 ${tn} 号刀同时用了，一个补号只能给一把刀，改一个`);fixes.push([`把${nm}改成 T${v.slice(0,2)}${String(Math.min(32,of+1)).padStart(2,'0')}`,{R:'tR',F:'tF',GL:'tGL',GR:'tGR',B:'tB',BF:'tBF'}[k],v.slice(0,2)+String(Math.min(32,of+1)).padStart(2,'0')]);}
+    offUse[of]=offUse[of]||[tn,nm];}
+  if(p.T.GL&&p.T.GR){if(p.T.GL.slice(0,2)!==p.T.GR.slice(0,2))e.push('切槽刀左右刀尖要是同一个刀位（前两位一样），只是补号不同');else if(p.T.GL===p.T.GR)e.push('切槽刀左右刀尖的补号要不一样');}
+  p.gL=p.T.GL?+p.T.GL.slice(2):2;p.gR=p.T.GR?+p.T.GR.slice(2):3;
+  if(p.bOn){
+    if(!(p.hole0>0)) e.push('要车内孔，毛坯得先有孔（毛坯内孔填上）。实心料钻孔下一版加');
+    if(!(p.bD>p.hole0)) e.push('成品孔径要比毛坯孔大');
+    if(PR.prims.length&&p.bD>PR.dMin-6) e.push('孔太大，壁太薄了（至少留单边 3 毫米）');
+    if(!(p.bL>0)||p.bL>p.stick-2) e.push('孔深要大于 0，也不能超过伸出长度');
+    PR.grooves.forEach(g=>{if(g.Dg-2*g.h<p.bD+6)e.push('槽底离内孔太近了，壁太薄');});
+  }
+  const warn=[];if(chgNote)warn.push(chgNote);
+  if((p.needF||p.bFin)&&!(p.allow>0))warn.push('标了要精车/精镗，可精车留量是 0：粗车刀已经车到尺寸，精车刀只是空走一遍。一般留 0.1');
+  if(!p.needF&&SEG.some(s=>CANFIN[s.t]&&s.f))warn.push('标了要精车的段没有余量（毛坯和成品一样粗），不用精车');
+  if(p.D0>sS) warn.push(`毛坯 Φ${n2(p.D0)} 比中拖板上能过的 Φ${n2(sS)} 大：车外圆时中拖板走到工件下面会碰上。只能车端面，或者换大车床、改装加高。模拟里中拖板碰到会报警。`);
+  return {p,errors:e,fixes,warn,PR};
+}
+
+function generate(p,PR){
+  const L=[],info={order:[]};
+  /* 没编码器（G98）：F 是每分钟走多少，转速低的大件要压下来，每转不能超过这些（毫米） */
+  MATK=p.mat==='st'?1.5:(p.mat==='al'?2:1);
+  /* 每转最多走多少：铸铁按Φ600皮带轮实测；钢件转速高、每转走得少（暂定） */
+  const CAPR=p.mat==='ci'?{face:0.63,rough:0.63,fin:0.5,step:0.63,bore:0.4,pl:0.34,ex:0.4}:{face:0.3,rough:0.3,fin:0.15,step:0.25,bore:0.25,pl:0.1,ex:0.2};info.capped=false;
+  let curS=0; const setS=s=>{if(s!==curS){L.push(`S${s}`);curS=s;}};
+  const F=(f,k)=>{if(p.g99)return fmt(p.mat!=='ci'&&k?Math.min(f,CAPR[k]):f);let v=Math.max(1,Math.round(f));if(k&&curS>0){const c=Math.max(1,Math.round(CAPR[k]*curS));if(c<v){v=c;info.capped=true;}}return fmt(v);};
+  const HZ=p.sys==='华中';
+  /* 铸铁件是模子倒出来的，余量小：端面、外圆、内孔都粗扒一刀成（单边 6 以内），"每刀最多"只管钢件、铝件 */
+  const CI=p.mat==='ci',apF=CI?Math.max(p.apF,6):p.apF,apOD=CI?Math.max(p.apOD,12):p.apOD,apIn=CI?Math.max(p.apIn,12):p.apIn;
+  const D0=p.D0, hole=p.hole0, AL=p.allow, safeX=D0+2;
+  const home=()=>{L.push(`G00 X${fmt(p.chgX)}`);L.push(`G00 Z${fmt(p.chgZ)}`);};
+  let cf=null; const Fx=(f,k)=>{const v=F(f,k);if(v!==cf){cf=v;return ` F${v}`;}return '';};
+  L.push(HZ?'%0001':'O0001'); L.push(HZ?(p.g99?'G95':'G94'):(p.g99?'G99':'G98'));
+  /* ===== 粗车刀：先调刀再走。车端面（从外往里）、粗车；没标精车的段一刀车到尺寸，标了的留精车量 ===== */
+  L.push('T'+p.T.R);
+  L.push(`G00 X${fmt(p.chgX)} Z${fmt(p.chgZ)}`);
+  const s0=rOut(D0,p.maxRpm); L.push(`M03 S${s0}`); curS=s0;
+  if(p.cool) L.push('M08');
+  if(!p.g99) L.push(HZ?'G04 P2':'G04 X2.');
+  info.face=s0;
+  L.push(`G00 X${fmt(safeX)} Z${fmt(p.Fs+2)}`);
+  if(p.Fs>0.0005){const n=Math.ceil(p.Fs/apF-1e-9),st=p.Fs/n,xe=hole>0?Math.max(0,hole-2):0;
+    /* 越往中心转速越高：分几段提速。最高不超过开头的 2.5 倍（重铸件不能转太快），也不超过车床最高转速 */
+    const fseg=[],sCap=Math.min(p.maxRpm,Math.round(s0*2.5));
+    if(D0>=100){let ds=D0,sc=s0;for(let g=0;g<8;g++){const nd=Math.round(ds/1.5);if(nd<=xe+6)break;fseg.push([nd,sc]);ds=nd;sc=Math.min(sCap,rOut(nd,p.maxRpm));if(sc>=sCap)break;}fseg.push([xe,fseg.length?sc:s0]);}
+    else fseg.push([xe,s0]);
+    info.faceS=fseg.map(q=>q[1]);
+    for(let k=1;k<=n;k++){const z=p.Fs-k*st;L.push(`G00 Z${fmt(z)}`);cf=null;
+      /* 没编码器：转速往上提，每分钟进给保持开头那个数（跟实际一样，F 不跟着变） */
+      fseg.forEach(([x,sv],i)=>{setS(sv);L.push(`G01 X${fmt(x)}`+(p.g99||i===0?Fx(p.fFace,'face'):''));});
+      L.push(`G00 Z${fmt(z+1)}`);L.push(`G00 X${fmt(safeX)}`);setS(s0);}}
+  L.push('G00 Z2.');
+  // 粗车：一层一层往下，每刀按当前直径定转速；毛坯每段粗细不一样时，只车有料的地方
+  const RD=0.1,rz0=-p.stick,RN=Math.ceil((2-rz0)/RD)+1,rem=new Float32Array(RN);
+  for(let i=0;i<RN;i++){const z=rz0+i*RD;rem[i]=z>0?0:blankAt(PR,z);}
+  const ri=z=>Math.max(0,Math.min(RN-1,Math.round((z-rz0)/RD)));
+  const maxRem=(za,zb)=>{let m=0;for(let i=ri(za);i<=ri(zb);i++)m=Math.max(m,rem[i]);return m;};
+  let maxStock=0;SEG.forEach(s=>{if(s.bk&&s.d)maxStock=Math.max(maxStock,s.bk-s.d);}); info.maxStock=maxStock;
+  const off=q=>finSeg(q.seg)?AL:0;   // 直径上多留多少
+  /* 粗车分层：每刀按"外圆每刀最多"整数往下（不再出 98.017 这种零碎数）；倒角那一小块不算，留给车到尺寸那一刀 */
+  const nv=PR.prims.filter(q=>q.z1!==q.z2&&SEG[q.seg].t!=='ch');
+  const tmin=nv.length?Math.min(...nv.map(q=>2*Math.min(q.r1,q.r2)+off(q))):D0;
+  info.rough=[];const lay=[];
+  for(let k=1;k<200;k++){const d=Math.round((D0-k*apOD)*1000)/1000;if(d<=tmin+0.001)break;lay.push(d);}
+  {for(const d of lay){ let zb=PR.zEnd;   // 最后一层不单走，下面那一刀直接车到尺寸
+      for(let z=0;z>=PR.zEnd-1e-9;z-=0.02){const rv=rpo(PR,z,AL);if(rv!==null&&rv>d/2+1e-6){zb=z;break;}}
+      let zs=null; for(let z=0;z>=zb-1e-9;z-=0.02){if(rem[ri(z)]>d/2+1e-6){zs=z;break;}}
+      if(zs===null||zs<=zb+0.01) continue;
+      const s=rOut(d,p.maxRpm); setS(s); info.rough.push(s);
+      L.push(`G00 X${fmt(d)}`);
+      if(zs<-1.5) L.push(`G00 Z${fmt(zs+1)}`);
+      L.push(`G01 Z${fmt(zb)}`+Fx(p.fR,'rough'));
+      for(let i=ri(zb);i<=ri(0);i++) rem[i]=Math.min(rem[i],d/2);
+      const up=Math.min(safeX,2*maxRem(zb,0)+1);
+      L.push(`G01 X${fmt(Math.max(up,d+1))}`);L.push('G00 Z2.');}}
+  // 车到尺寸那一刀：从端面靠里开始，顺着端面拉上来，再倒角、车外圆（刀尖只在外圆上吃力）
+  const pr=PR.prims.slice(0,PR.lastI+1); PR.finEnd=pr.length?pr[pr.length-1].z2:0; info.last=[];
+  if(pr.length){
+    const xin=Math.max(hole>0?hole+1:0,pr[0].r1*2-6);
+    setS(rOut(Math.max(pr[0].r1,pr[0].r2)*2,p.maxRpm)); info.last.push(curS);
+    L.push(`G00 X${fmt(xin)}`); L.push('G01 Z0.'+Fx(p.fFace,'face'));
+    let cx=xin,first=true;
+    pr.forEach(q=>{const o=off(q);
+      if(q.z1===q.z2){const x=2*q.r2+o;L.push(`G01 X${fmt(x)}`+Fx(p.fStep,'step'));cx=x;return;}
+      const s=rOut(Math.max(q.r1,q.r2)*2,p.maxRpm); if(s!==curS){setS(s);info.last.push(s);}
+      const xs=2*q.r1+o; if(Math.abs(xs-cx)>1e-6) L.push(`G01 X${fmt(xs)}`+Fx(first?p.fFace:p.fStep,first?'face':'step'));
+      first=false; const xe=2*q.r2+o;
+      /* 铸铁不精车的段：一刀成，用粗车进给 */
+      const ff=CI&&!finSeg(q.seg)?[p.fR,'rough']:[p.fF,'fin'];
+      if(q.k==='arc') L.push(`${q.ccw?'G03':'G02'} X${fmt(xe)} Z${fmt(q.z2)} R${fmt(q.R)}`+Fx(ff[0],ff[1]));
+      else L.push(`G01 X${fmt(xe)} Z${fmt(q.z2)}`+Fx(ff[0],ff[1]));
+      cx=xe;});
+    L.push(`G01 X${fmt(D0+1)}`+Fx(p.fStep,'step'));
+  }
+  const segNo=idx=>[...new Set(idx.map(i=>PR.prims[i].seg).filter(i=>SEG[i].t!=='ch'))].map(i=>i+1);
+  info.order.push([p.T.R,'车端面、粗车'+(p.needF?`，没标精车的段一刀到尺寸，第 ${segNo(p.finIdx).join('、')} 块留 ${n2(AL)}`:'，一刀车到尺寸')]);
+  const bT=p.bFin?p.bD-AL:p.bD; let holeNow=hole;
+  /* 精车：只走标了要精车的段，转速加三成。same=精车刀就是粗车刀，不换刀接着走 */
+  const odFinish=same=>{
+    const runs=[];let cur=null;
+    for(let i=0;i<=PR.lastI;i++){const q=PR.prims[i];
+      if(!finSeg(q.seg)){cur=null;continue;}
+      if(q.z1===q.z2){if(cur)cur.push(i);continue;}
+      if(!cur){cur=[];runs.push(cur);}cur.push(i);}
+    runs.forEach(r=>{while(r.length&&PR.prims[r[r.length-1]].z1===PR.prims[r[r.length-1]].z2)r.pop();});
+    if(!same)L.push('T'+p.T.F);
+    info.fin=[]; cf=null;
+    L.push(`G00 X${fmt(safeX)}`);
+    runs.forEach(run=>{if(!run.length)return;
+      const q0=PR.prims[run[0]],z1=q0.z1,rs=q0.r1;
+      const s=rOut(Math.max(q0.r1,q0.r2)*2,p.maxRpm,1.3);setS(s);info.fin.push(s);
+      if(z1>-0.05){ // 从端面开始：端面靠里拉上来，倒角，车外圆
+        const xs=Math.max(holeNow>0?holeNow+1:0,2*rs-6);
+        L.push('G00 Z2.');L.push(`G00 X${fmt(xs)}`);L.push('G01 Z0.'+Fx(p.fFace,'face'));L.push(`G01 X${fmt(2*rs)}`);
+      }else{ // 从台阶开始：下到台阶边上，顺着台阶拉上来
+        let rr=0;for(let j=run[0]-1;j>=0;j--){const q=PR.prims[j];if(q.z1!==q.z2){rr=q.r2;break;}}
+        const xs=Math.max(2*rr+1,2*rs-4);
+        L.push(`G00 Z${fmt(z1+1)}`);L.push(`G00 X${fmt(xs)}`);L.push(`G01 Z${fmt(z1)}`+Fx(p.fStep,'step'));
+        if(Math.abs(xs-2*rs)>1e-6)L.push(`G01 X${fmt(2*rs)}`+Fx(p.fStep,'step'));
+      }
+      let cx=2*rs;
+      run.forEach(i=>{const q=PR.prims[i];
+        if(q.z1===q.z2){L.push(`G01 X${fmt(2*q.r2)}`+Fx(p.fStep,'step'));cx=2*q.r2;return;}
+        const s=rOut(Math.max(q.r1,q.r2)*2,p.maxRpm,1.3);if(s!==curS){setS(s);info.fin.push(s);}
+        if(Math.abs(2*q.r1-cx)>1e-6)L.push(`G01 X${fmt(2*q.r1)}`+Fx(p.fStep,'step'));
+        if(q.k==='arc')L.push(`${q.ccw?'G03':'G02'} X${fmt(2*q.r2)} Z${fmt(q.z2)} R${fmt(q.R)}`+Fx(p.fF,'fin'));
+        else L.push(`G01 X${fmt(2*q.r2)} Z${fmt(q.z2)}`+Fx(p.fF,'fin'));
+        cx=2*q.r2;});
+      const qe=PR.prims[run[run.length-1]];
+      L.push(`G01 X${fmt(2*qe.r2+2)}`+Fx(p.fStep,'step'));L.push(`G00 Z${fmt(qe.z2+1)}`);L.push(`G00 X${fmt(safeX)}`);
+    });
+    info.order.push([p.T.F,(same?'不换刀，':'')+`精车第 ${segNo(p.finIdx).join('、')} 块`]);
+  };
+  /* 精镗：走一刀到尺寸，转速加三成。same=精镗刀就是粗镗刀，不换刀接着镗 */
+  const boreFinish=same=>{
+    if(!same){L.push('T'+p.T.BF);L.push(`G00 X${fmt(bT-1)}`);L.push('G00 Z2.');}
+    const sf=rIn(p.bD,p.maxRpm,1.3); setS(sf); info.boreFin=sf;
+    L.push(`G00 X${fmt(p.bD)}`);L.push(`G01 Z${fmt(-p.bL)} F${F(p.fF,'bore')}`);L.push(`G01 X${fmt(p.bD-1)}`);L.push('G00 Z2.');
+    info.order.push([p.T.BF,(same?'不换刀，':'')+'精镗一刀']);
+  };
+  const sameF=p.needF&&p.T.F===p.T.R, sameB=p.bFin&&p.T.BF===p.T.B;
+  if(sameF) odFinish(true);
+  home();
+  /* ===== 粗镗刀：不精镗就直接镗到尺寸，要精镗就留精车量 ===== */
+  if(p.bOn){
+    L.push('T'+p.T.B); info.bore=[];
+    L.push(`G00 X${fmt(hole-1)}`); L.push('G00 Z2.');
+    const bl=[];for(let k=1;k<200;k++){const d=Math.round((hole+k*apIn)*1000)/1000;if(d>=bT-0.001)break;bl.push(d);}bl.push(bT);
+    bl.forEach((d,k)=>{const last=k===bl.length-1&&!p.bFin;const s=rIn(d,p.maxRpm);setS(s);info.bore.push(s);
+      L.push(`G00 X${fmt(d)}`);L.push(`G01 Z${fmt(-p.bL)} F${F(last?p.fF:p.fIn,'bore')}`);L.push(`G01 X${fmt(d-1)}`);L.push('G00 Z2.');});
+    info.order.push([p.T.B,p.bFin?`粗镗留 ${n2(AL)}`:'镗孔到尺寸']);
+    if(sameB) boreFinish(true);
+    home(); holeNow=sameB?p.bD:bT;
+  }
+  /* ===== 换精车刀、精镗刀（粗的都干完再精，免得粗车的劲把精车好的尺寸带走） ===== */
+  if(p.needF&&!sameF){odFinish(false);home();}
+  if(p.bFin&&!sameB){boreFinish(false);home();}
+  /* ===== 皮带槽：先扎，再扩离刀近的左边，再换右刀尖扩右边 ===== */
+  if(PR.grooves.length){
+    let firstG=true;
+    PR.grooves.forEach(g=>{
+      const D1=g.Dg,w=p.gw,Db=g.Dg-2*g.h,up=D1+2,ov=(g.B-g.b)/2,nEx=Math.max(1,Math.ceil(ov/w-1e-9));
+      /* 扎槽：半速，但不低于 45（大皮带轮本来就慢）；扩槽：比车外圆快一成 */
+      const sOD=rOut(D1,p.maxRpm),sPl=Math.max(1,Math.min(Math.round(sOD*1.12),Math.max(Math.round(sOD*0.5),45))), sEx=Math.min(p.maxRpm,Math.round(sOD*1.12));
+      info.grv=[sPl,sEx,nEx,ov];
+      for(let i=0;i<g.n;i++){
+        const Zc=g.zr-(g.e+i*g.p),ZbL=Zc-g.b/2,ZbR=Zc+g.b/2;
+        L.push('T'+p.T.GL); setS(sPl);
+        let n=1; if(g.b-w>0.001) n=Math.ceil((g.b-w)/(0.9*w)-1e-9)+1;
+        const pos=[];for(let k=0;k<n;k++)pos.push(n===1?ZbL:(ZbR-w)-(g.b-w)*k/(n-1));
+        L.push(`G00 Z${fmt(pos[0])}`); if(firstG){L.push(`G00 X${fmt(up)}`);firstG=false;}
+        pos.forEach((z,k)=>{if(k>0)L.push(`G00 Z${fmt(z)}`);L.push(`G01 X${fmt(Db)} F${F(p.fPl,'pl')}`);L.push(`G00 X${fmt(up)}`);});
+        setS(sEx);
+        for(let j=1;j<=nEx;j++){const zt=ZbL-ov*j/nEx;L.push(`G00 Z${fmt(zt)}`);L.push(`G01 X${fmt(D1)}`+(j===1?` F${F(p.fEx,'ex')}`:''));L.push(`G01 X${fmt(Db)} Z${fmt(ZbL)}`);L.push(`G00 X${fmt(up)}`);}
+        L.push('T'+p.T.GR);
+        for(let j=1;j<=nEx;j++){const zt=ZbR+ov*j/nEx;L.push(`G00 Z${fmt(zt)}`);L.push(`G01 X${fmt(D1)}`+(j===1?` F${F(p.fEx,'ex')}`:''));L.push(`G01 X${fmt(Db)} Z${fmt(ZbR)}`);L.push(`G00 X${fmt(up)}`);}
+      }
+      L.push(`G00 X${fmt(Math.max(p.D0+2,up))}`);
+    });
+    home();
+    info.order.push([p.T.GL+'/T'+p.T.GR,'切皮带槽']);
+  }
+  if(p.cool) L.push('M09');
+  L.push('M05');
+  /* 最后转回开头那把刀，下一件直接按启动 */
+  {let lt='';for(let i=L.length-1;i>=0;i--){if(/^T\d{4}$/.test(L[i])){lt=L[i];break;}}if(lt&&lt!=='T'+p.T.R)L.push('T'+p.T.R);}
+  L.push('M30');
+  return {lines:L,info};
+}
+
+/* ---------------- 模拟 ---------------- */
+const cv=$('cv'),ctx=cv.getContext('2d');
+let P=null,PR=null,PROG=null,sim=null,viewMode='zoom',raf=0,lastT=0,BAD=false;
+const DZ=0.05;
+function parse(raw){
+  const text=String(raw||'').toUpperCase().replace(/\(.*?\)/g,' ').replace(/[;；].*$/,'').replace(/\/\/.*$/,'');
+  const t={G:[],M:[],nodot:[]};const re=/([A-Z])\s*([+-]?(?:\d+\.?\d*|\.\d+))/g;let m;
+  while((m=re.exec(text))){const k=m[1],v=m[2],n=parseFloat(v);
+    if(k==='G')t.G.push(Math.round(n*10)/10);else if(k==='M')t.M.push(Math.round(n));
+    else if(k==='T')t.Tstr=v.replace(/^[+-]/,'');
+    else{t[k]=n;if('XZUWIKR'.includes(k)&&!v.includes('.')&&n!==0)t.nodot.push(k+v);}}
+  return t;}
+const slotOf=tn=>(((tn-1)%4)+4)%4;
+/* 每个刀号一个颜色（路线、图例、刀号字都用它） */
+const TCOL=['#4cc9e0','#ffb547','#8be36b','#e58bff','#ff7aa8','#f5e663'];
+const tcol=n=>TCOL[((((n||1)-1)%TCOL.length)+TCOL.length)%TCOL.length];
+function legend(){const box=$('legend');if(!box)return;box.textContent='';
+  const seen=[];(PROG?PROG.lines:[]).forEach(l=>{const t=parse(l);if(t.Tstr){const v=t.Tstr,tn=v.length>=3?parseInt(v.slice(0,v.length-2),10):parseInt(v,10);if(tn>0&&!seen.includes(tn))seen.push(tn);}});
+  if(!seen.length)seen.push(1);
+  seen.sort((a,b)=>a-b).forEach(tn=>{const sp=document.createElement('span');const i=document.createElement('i');i.style.borderTopColor=tcol(tn);sp.append(i,'T'+String(tn).padStart(2,'0'));box.appendChild(sp);});
+  const r=document.createElement('span');r.className='lr';r.textContent='实线切削 虚线快移';box.appendChild(r);}
+function rpmAt(s,xd){let r=s.S;if(s.css){r=s.S*1000/(Math.PI*Math.max(1,Math.abs(xd)));if(s.maxS>0)r=Math.min(r,s.maxS);}return Math.max(0,P.maxRpm>0?Math.min(r,P.maxRpm):r);}
+function feedRate(s,xd){if(!s.g99)return Math.max(1,s.F||0);return Math.max(1,(s.F||0)*rpmAt(s,xd));}
+function arcGeo(x1,z1,x2,z2,ccw,R,I,K){const r1=x1/2,r2=x2/2;let cz,cr,RR,err='';
+  if(isFinite(I)||isFinite(K)){cz=z1+(K||0);cr=r1+(I||0);RR=Math.hypot(r1-cr,z1-cz);const R2=Math.hypot(r2-cr,z2-cz);if(Math.abs(R2-RR)>0.02)err=`圆弧的 I、K 不对：圆心到起点 ${n2(RR)}、到终点 ${n2(R2)}，不在一个圆上`;}
+  else{let Rv=Math.abs(R);const big=R<0,c=Math.hypot(z2-z1,r2-r1)||1e-6;if(Rv<c/2-0.005){err=`圆弧画不出来：起点到终点直线距离 ${n2(c)}，R 至少要 ${n2(c/2)}，程序写的 R${n2(Rv)}`;}if(Rv<c/2)Rv=c/2;const vz=(z2-z1)/c,vr=(r2-r1)/c,h=Math.sqrt(Math.max(0,Rv*Rv-c*c/4));let sg=ccw?1:-1;if(big)sg=-sg;cz=(z1+z2)/2+sg*h*(-vr);cr=(r1+r2)/2+sg*h*vz;RR=Rv;}
+  const a1=Math.atan2(r1-cr,z1-cz),a2=Math.atan2(r2-cr,z2-cz);let da=a2-a1;
+  if(ccw){while(da<=1e-9)da+=2*Math.PI;}else{while(da>=-1e-9)da-=2*Math.PI;}
+  return {cz,cr,R:RR,a1,da,err};}
+window.__arcGeo=arcGeo;
+function findN(n){for(let i=0;i<PROG.lines.length;i++){if(parse(PROG.lines[i]).N===n)return i;}return -1;}
+function contour(s,ns,nf,x0,z0){const i0=findN(ns),i1=findN(nf);if(i0<0||i1<0||i1<i0)return null;
+  let mo=s.motion>3?1:s.motion,x=x0,z=z0;const pts=[[x,z]],moves=[];
+  for(let i=i0;i<=i1;i++){const t=parse(PROG.lines[i]);for(const g of [0,1,2,3])if(t.G.includes(g))mo=g;
+    const has=['X','Z','U','W'].some(k=>isFinite(t[k]));const X=isFinite(t.X)?t.X:(isFinite(t.U)?x+t.U:x),Z=isFinite(t.Z)?t.Z:(isFinite(t.W)?z+t.W:z);
+    const mv={F:t.F,S:t.S};
+    if(!has){if(isFinite(t.F)||isFinite(t.S))moves.push(mv);continue;}
+    if(mo===2||mo===3){const a=arcGeo(x,z,X,Z,mo===3,t.R,t.I,t.K);if(a.err)return {err:`第 ${i+1} 行：${a.err}`};const n=Math.max(2,Math.ceil(Math.abs(a.da)*a.R/0.5));
+      for(let k=1;k<=n;k++){const an=a.a1+a.da*k/n;pts.push([2*(a.cr+a.R*Math.sin(an)),a.cz+a.R*Math.cos(an)]);}
+      moves.push(Object.assign(mv,{arc:true,x:X,z:Z,ccw:mo===3,R:t.R,I:t.I,K:t.K}));}
+    else{pts.push([X,Z]);moves.push(Object.assign(mv,{x:X,z:Z,rapid:mo===0}));}
+    x=X;z=Z;}
+  return {pts,moves,i1};}
+function newSim(){
+  const z0=-P.stick,N=Math.ceil((P.Fs-z0)/DZ)+1,r=new Float32Array(N),ri=new Float32Array(N);
+  for(let i=0;i<N;i++)r[i]=blankAt(PR,Math.min(z0+i*DZ,0)); ri.fill(Math.max(0,P.hole0/2));
+  const t0=MODE==='own'?'0101':P.T.R,tool=+t0.slice(0,2),slot=slotOf(tool);
+  return {z0,N,r,ri,li:0,segs:null,si:0,x:P.chgX,z:P.chgZ,tool,off:+t0.slice(2),slot,theta:slot*Math.PI/2,S:0,spin:false,cool:false,F:0,g99:P.g99,css:false,maxS:0,motion:0,cyc:null,g71:null,g73:null,jumpTo:null,warns:[],
+    cut:new Uint8Array(N),tmaj:new Float32Array(N),tp:new Float32Array(N),time:0,tCut:0,tRap:0,tWait:0,dirty:true,cutNow:false,state:'idle',trail:[],crashLine:-1,msg:'',single:sim?sim.single:false,taken:false};
+}
+const TANB=Math.tan(75*Math.PI/180);   // 刀片背面抬起的角度：按"能把程序轮廓车出来的刀"来算，不让刀背啃零件
+const DEEP=()=>Math.max(P.mat==='ci'?6.5:5,(P.apOD||0)/2+1,(P.apIn||0)/2+1,(P.apF||0)+1);
+const BAR=()=>Math.max(4,Math.min(12,(P.hole0||20)*0.35));
+const TY=s=>P.tmap[s.tool]||'od';
+const RIGHT=s=>TY(s)==='grv'&&s.off===P.gR;
+function block(s,z){ const t=TY(s); if(t==='od') return [z,z+10]; if(t==='bore') return [z,z+60]; if(RIGHT(s)) return [z-P.gw,z]; return [z,z+P.gw]; }
+function idx(s,zl,zr){return [Math.max(0,Math.ceil((zl-s.z0)/DZ-1e-6)),Math.min(s.N-1,Math.floor((zr-s.z0)/DZ+1e-6))];}
+const HZMAP={94:98,95:99,80:90,81:94,82:92};
+const isHZ=()=>P&&P.sys==='华中';
+function startLine(s){
+  const t=parse(PROG.lines[s.li]);if(isHZ())t.G=t.G.map(g=>HZMAP[g]!==undefined?HZMAP[g]:g);
+  const G=t.G,has=g=>G.includes(g),segs=[];s.segs=segs;s.si=0;
+  let cx=s.x,cz=s.z;const W=msg=>{const m=`第 ${s.li+1} 行：${msg}`;if(!s.warns.includes(m))s.warns.push(m);};
+  const lin=(x2,z2,rapid,kind)=>{const d=Math.hypot((x2-cx)/2,z2-cz);if(d<1e-7)return;
+    const r=rapid?P.rapid:(kind==='thr'?Math.max(1,(s.F||0)*rpmAt(s,(cx+x2)/2)):feedRate(s,(cx+x2)/2));
+    segs.push({x1:cx,z1:cz,x2,z2,rapid:!!rapid,nocut:kind==='nocut',thr:kind==='thr'?(s.F||0):0,t:d/r*60,done:0,f:0});cx=x2;cz=z2;};
+  const arc=(x2,z2,ccw,R,I,K)=>{if(!isFinite(R)&&!isFinite(I)&&!isFinite(K)){W('圆弧没写 R 或 I、K，按直线走');lin(x2,z2,false);return;}
+    const a=arcGeo(cx,cz,x2,z2,ccw,R,I,K),r=feedRate(s,(cx+x2)/2);if(a.err){segs.push({bad:a.err});return;}segs.push({arc:true,x1:cx,z1:cz,x2,z2,cz:a.cz,cr:a.cr,R:a.R,a1:a.a1,da:a.da,t:Math.abs(a.da)*a.R/r*60,done:0,f:0});cx=x2;cz=z2;};
+  if(has(20)){crash(s,'G20 是英制（寸），这里只按毫米模拟，改成 G21 或删掉再跑');return;}
+  if(has(98))s.g99=false;if(has(99))s.g99=true;if(has(96))s.css=true;if(has(97))s.css=false;
+  if(has(50)){if(isFinite(t.S))s.maxS=t.S;if(isFinite(t.X))s.x=t.X;if(isFinite(t.Z))s.z=t.Z;return;}
+  if(t.Tstr){const v=t.Tstr;let tn,off;if(v.length>=3){tn=parseInt(v.slice(0,v.length-2),10);off=parseInt(v.slice(-2),10);}else{tn=off=parseInt(v,10);}
+    if(isFinite(tn)&&tn>0){
+      if(tn===s.tool){if(P.tmap[tn]==='grv'&&s.off===P.gL&&off===P.gR)s.z+=P.gw;else if(P.tmap[tn]==='grv'&&s.off===P.gR&&off===P.gL)s.z-=P.gw;}
+      else{const to=slotOf(tn),steps=(to-s.slot+4)%4,from=s.theta;s.theta=from+steps*Math.PI/2;segs.push({dwell:2,turn:{from,to:s.theta,fromTool:s.tool,toTool:tn}});s.slot=to;}
+      s.tool=tn;s.off=off;cx=s.x;cz=s.z;}}
+  if(isFinite(t.S))s.S=t.S;if(isFinite(t.F))s.F=t.F;
+  t.M.forEach(m=>{if(m===3||m===4)s.spin=true;if(m===8)s.cool=true;if(m===9)s.cool=false;if(m===98||m===99)W('子程序（M98/M99）这一版不模拟');});
+  const tail=()=>{t.M.forEach(m=>{if(m===5)segs.push({spinOff:true});if(m===0||m===1)segs.push({pause:true});if(m===30||m===2)segs.push({end:true});});};
+  const hasXZ=['X','Z','U','W'].some(k=>isFinite(t[k])),X=isFinite(t.X)?t.X:(isFinite(t.U)?cx+t.U:cx),Z=isFinite(t.Z)?t.Z:(isFinite(t.W)?cz+t.W:cz);
+  if(has(4)){segs.push({dwell:isFinite(t.X)?t.X:(isFinite(t.U)?t.U:(isFinite(t.P)?(isHZ()?t.P:t.P/1000):0))});tail();return;}
+  if(has(28)){lin(P.chgX,cz,true);lin(P.chgX,P.chgZ,true);tail();return;}
+  if(has(71)||has(73)||has(72)){
+    const pq=isFinite(t.P)&&isFinite(t.Q);
+    /* 华中：一行写完，U(或W)=每刀吃多少，R=退刀，X/Z=精车留量 */
+    if(isHZ()&&pq){if(has(71))s.g71={d:isFinite(t.U)?t.U:1,e:isFinite(t.R)?t.R:0.5};else if(has(72))s.g72={d:isFinite(t.W)?t.W:1,e:isFinite(t.R)?t.R:0.5};else s.g73={i:isFinite(t.U)?t.U:0,k:isFinite(t.W)?t.W:0,n:isFinite(t.R)?Math.max(1,Math.round(t.R)):3};}
+    else if(!pq){if(has(71))s.g71={d:isFinite(t.U)?t.U:1,e:isFinite(t.R)?t.R:0.5};else if(has(72))s.g72={d:isFinite(t.W)?t.W:1,e:isFinite(t.R)?t.R:0.5};else s.g73={i:isFinite(t.U)?t.U:0,k:isFinite(t.W)?t.W:0,n:isFinite(t.R)?Math.max(1,Math.round(t.R)):3};tail();return;}
+    const C=contour(s,t.P,t.Q,cx,cz);if(!C){W(`找不到 N${t.P} 到 N${t.Q} 这几行，跳过`);tail();return;}if(C.err){crash(s,C.err);return;}
+    const du=isHZ()?(isFinite(t.X)?t.X:0):(isFinite(t.U)?t.U:0),dw=isHZ()?(isFinite(t.Z)?t.Z:0):(isFinite(t.W)?t.W:0),x0=cx,z0=cz,pts=C.pts.slice(1).map(q=>[q[0]+du,q[1]+dw]);
+    if(pts.length&&has(72)){/* G72 端面粗车：一层一层沿 Z 往里，每层从外往里横着车 */
+      const d=Math.max(0.05,(s.g72&&s.g72.d)||1),e=(s.g72&&s.g72.e)||0.5,zs=pts.map(q=>q[1]),dir=Math.min(...zs)<z0?-1:1,lim=dir<0?Math.min(...zs):Math.max(...zs),out=x0>=pts[pts.length-1][0]?1:-1;
+      for(let k=1;k<400;k++){const zk=z0+dir*d*k;if(dir<0?zk<=lim+1e-6:zk>=lim-1e-6)break;
+        let xe=pts[pts.length-1][0];for(let i=0;i<pts.length-1;i++){const [xa,za]=pts[i],[xb,zb]=pts[i+1];if(za!==zb&&(za-zk)*(zb-zk)<=0){xe=xa+(xb-xa)*(zk-za)/(zb-za);break;}}
+        lin(x0,zk,true);lin(xe,zk,false);lin(xe+out*2*e,zk-dir*e,false);lin(x0,zk-dir*e,true);}
+      lin(x0,pts[0][1],true);lin(pts[0][0],pts[0][1],true);for(let i=1;i<pts.length;i++)lin(pts[i][0],pts[i][1],false);
+      lin(x0,cz,true);lin(x0,z0,true);s.jumpTo=C.i1+1;tail();return;}
+    if(pts.length&&has(71)){const d=Math.max(0.05,(s.g71&&s.g71.d)||1),e=(s.g71&&s.g71.e)||0.5,dir=x0>pts[0][0]?-1:1,xs=pts.map(q=>q[0]),lim=dir<0?Math.min(...xs):Math.max(...xs);
+      for(let k=1;k<400;k++){const xk=x0+dir*2*d*k;if(dir<0?xk<=lim+1e-6:xk>=lim-1e-6)break;
+        let ze=pts[pts.length-1][1];for(let i=0;i<pts.length-1;i++){const [xa,za]=pts[i],[xb,zb]=pts[i+1];if(xa!==xb&&(xa-xk)*(xb-xk)<=0){ze=za+(zb-za)*(xk-xa)/(xb-xa);break;}}
+        lin(xk,z0,true);lin(xk,ze,false);lin(xk-dir*2*e,ze+e,false);lin(xk-dir*2*e,z0,true);}
+      lin(pts[0][0],z0,true);lin(pts[0][0],pts[0][1],true);for(let i=1;i<pts.length;i++)lin(pts[i][0],pts[i][1],false);
+      lin(x0,cz,true);lin(x0,z0,true);}
+    else if(pts.length){const g=s.g73||{i:0,k:0,n:3},n=g.n;
+      for(let p=1;p<=n;p++){const f=n>1?(n-p)/(n-1):0,pp=C.pts.slice(1).map(q=>[q[0]+du+2*g.i*f,q[1]+dw+g.k*f]);
+        lin(pp[0][0],z0,true);lin(pp[0][0],pp[0][1],true);for(let i=1;i<pp.length;i++)lin(pp[i][0],pp[i][1],false);lin(x0,cz,true);lin(x0,z0,true);}}
+    s.jumpTo=C.i1+1;tail();return;}
+  if(has(70)){const C=contour(s,t.P,t.Q,cx,cz);if(!C){W(`找不到 N${t.P} 到 N${t.Q} 这几行，跳过`);tail();return;}if(C.err){crash(s,C.err);return;}
+    const x0=cx,z0=cz;C.moves.forEach(m=>{if(isFinite(m.F))s.F=m.F;if(isFinite(m.S))s.S=m.S;if(m.x===undefined)return;if(m.arc)arc(m.x,m.z,m.ccw,m.R,m.I,m.K);else lin(m.x,m.z,m.rapid);});
+    lin(x0,cz,true);lin(x0,z0,true);tail();return;}
+  if(has(74)){W('G74 这一版还不模拟，跳过');tail();return;}
+  if(has(75)){if(!hasXZ){tail();return;}
+    const dk=(isFinite(t.Q)?t.Q:0)/1000,x0=cx,z0=cz,sg=Math.sign(Z-z0)||-1,zs=[z0];
+    if(dk>0){for(let z=z0+sg*dk;sg<0?z>Z+1e-6:z<Z-1e-6;z+=sg*dk)zs.push(z);}if(Math.abs(zs[zs.length-1]-Z)>1e-6)zs.push(Z);
+    zs.forEach(z=>{lin(x0,z,true);lin(X,z,false);lin(x0,z,true);});lin(x0,z0,true);tail();return;}
+  if(has(76)){if(!hasXZ){tail();return;}
+    const k=(isFinite(t.P)?t.P:0)/1000,q=(isFinite(t.Q)?t.Q:Math.max(50,k*300))/1000,x0=cx,z0=cz,out=x0>X?1:-1;if(isFinite(t.F))s.F=t.F;
+    const R=isFinite(t.R)?t.R:0,big=X+2*k*out,n=k>0?Math.min(40,Math.max(1,Math.ceil((k/q)**2))):1;
+    for(let p=1;p<=n;p++){const dep=k>0?Math.min(k,q*Math.sqrt(p)):0,xp=big-2*out*dep;lin(xp+2*R,z0,true);lin(xp,Z,false,'thr');lin(x0,Z,true);lin(x0,z0,true);}
+    tail();return;}
+  for(const g of [0,1,2,3,32,90,92,94])if(has(g)){if(g>=90&&s.motion!==g)s.cycT=null;s.motion=g;if(g>=90)s.cyc={x:cx,z:cz};}
+  if(hasXZ){const m=s.motion,X0=X,Z0=Z;
+    if(m===0)lin(X,Z,true);
+    else if(m===1){let drill=Math.abs(X-cx)<1e-9&&Math.abs(cx)<1.5&&Z<cz&&TY(s)!=='bore';if(drill){const [a,b]=idx(s,Z,cz);drill=false;for(let i=a;i<=b;i++)if(s.r[i]>s.ri[i]+0.005&&s.ri[i]<0.75){drill=true;break;}}if(drill)W('在中心沿 Z 走，看着像钻孔，这一版不模拟钻孔');lin(X,Z,false,drill?'nocut':'');}
+    else if(m===2||m===3)arc(X,Z,m===3,t.R,t.I,t.K);
+    else if(m===32)lin(X,Z,false,'thr');
+    else{const c=s.cyc||{x:cx,z:cz},ct=s.cycT||{},hx=isFinite(t.X)||isFinite(t.U),hz=isFinite(t.Z)||isFinite(t.W);
+      const X=hx?X0:(ct.X!==undefined?ct.X:X0),Z=hz?Z0:(ct.Z!==undefined?ct.Z:Z0),R=isFinite(t.R)?t.R:(ct.R||0);s.cycT={X,Z,R};
+      if(m===90){lin(X+2*R,c.z,true);lin(X,Z,false);lin(c.x,Z,false);lin(c.x,c.z,true);}
+      else if(m===92){lin(X+2*R,c.z,true);lin(X,Z,false,'thr');lin(c.x,Z,true);lin(c.x,c.z,true);}
+      else if(m===94){lin(c.x,Z+R,true);lin(X,Z,false);lin(X,c.z,false);lin(c.x,c.z,true);}}}
+  tail();}
+function crash(s,msg){s.state='crash';s.crashLine=s.li;s.msg=`第 ${s.li+1} 行 ${PROG.lines[s.li]}：${msg}`;}
+function moveTo(s,x,z,rapid,nocut){
+  if(nocut){s.x=x;s.z=z;return true;}
+  const dx=(x-s.x)/2,dz=z-s.z,len=Math.hypot(dx,dz),steps=Math.max(1,Math.ceil(len/0.08)),sx=s.x,sz=s.z,bar=BAR();
+  for(let k=1;k<=steps;k++){
+    const xx=sx+(x-sx)*k/steps,zz=sz+(z-sz)*k/steps,tip=xx/2;
+    const [zl,zr]=block(s,zz);
+    if(TY(s)!=='bore'&&zl< -P.stick-0.001&&tip<P.D0/2+18){s.x=xx;s.z=zz;crash(s,'刀会撞到卡盘');return false;}
+    const slideL=zz+5;
+    if(TY(s)!=='bore'&&slideL<P.Fs){const [a,b]=idx(s,slideL,P.Fs);for(let i=a;i<=b;i++){if(s.r[i]>s.ri[i]+0.005&&s.r[i]>P.sS/2){s.x=xx;s.z=zz;crash(s,`中拖板碰到工件了：工件 Φ${n2(s.r[i]*2)} 比中拖板上能过的 Φ${n2(P.sS)} 大`);return false;}}}
+    const [a,b]=idx(s,rapid?zl+0.02:zl,zr);let hit=false;const TH=rapid?0.01:0.002;
+    /* 刀片形状：刀尖往右（往尾座）刀片背面是斜着抬起来的（35°菱形刀片，约 52°），不是一块平板；
+       刀尖左右只车到这条斜线，退刀槽、圆弧、倒角才不会被"刀背"啃掉 */
+    /* 横着走（车端面、拉台阶）时刀尖右边 1.5 毫米内是刀片的端刃，能把端面余量车干净；竖着走、斜着走只看那条斜线 */
+    const pxx=k>1?sx+(x-sx)*(k-1)/steps:sx,pzz=k>1?sz+(z-sz)*(k-1)/steps:sz,xMove=Math.abs(zz-pzz)<0.3*Math.abs((xx-pxx)/2);
+    const TT=TY(s),FW=xMove?8:0,SW=Math.max(DZ,pzz-zz)+1e-6,lim=i=>{const zc=s.z0+i*DZ,d=zc-zz-SW,e=d<=0?0:Math.max(0,d-(zc>0.001?FW:0))*TANB;return TT==='bore'?tip-e:tip+e;};   // SW：这一小步刀尖扫过的格子都车到刀尖
+    for(let i=a;i<=b;i++){if(!(s.r[i]>s.ri[i]+0.005))continue;
+      if(TT==='od'){if(s.r[i]>lim(i)+TH){hit=true;break;}}
+      else if(TT==='grv'){if(s.r[i]>tip+TH){hit=true;break;}}
+      else if(s.ri[i]<lim(i)-TH&&s.r[i]>tip-bar){hit=true;break;}}
+    if(hit){
+      if(rapid){s.x=xx;s.z=zz;crash(s,'快速移动会撞到工件'+(zz>-0.5&&zz<=P.Fs+0.5?'（在端面附近：上面“端面余量”填的 '+n2(P.Fs)+'，比程序定位的 Z 还大就会撞，改小试试）':''));return false;}
+      if(!s.spin){s.x=xx;s.z=zz;crash(s,'主轴没转就进刀切削');return false;}
+      if(!(rpmAt(s,xx)>0)){s.x=xx;s.z=zz;crash(s,'主轴转速是 0（S0 或没写 S），不能切削');return false;}
+      if(!(s.F>0)){s.x=xx;s.z=zz;crash(s,'没给进给 F（或者 F0），不能切削');return false;}
+      /* 一刀吃多深：沿 Z 走看单边吃多少，沿 X 走看端面吃多少。超过就报警（多半是坐标写错了） */
+      if(TY(s)!=='grv'){const zMove=Math.abs(z-sz)>=Math.abs((x-sx)/2);let dep=0;
+        if(TY(s)==='od'){if(zMove){for(let i=a;i<=b;i++)if(s.r[i]>s.ri[i]+0.005&&s.r[i]>lim(i))dep=Math.max(dep,s.r[i]-tip);}else{let c=0;for(let i=a;i<=b;i++)if(s.r[i]>tip+0.5&&s.r[i]>s.ri[i]+0.005)c++;dep=c*DZ;}}
+        else if(zMove){for(let i=a;i<=b;i++)if(s.r[i]>s.ri[i]+0.005&&s.ri[i]<tip-0.01&&s.r[i]>tip-bar)dep=Math.max(dep,tip-s.ri[i]);}
+        /* 吃深要连续走过 1 毫米以上才算（台阶上留的 0.1 薄片不算） */
+        const lmt=DEEP();if(dep>lmt)s.deepRun=(s.deepRun||0)+len/steps;else s.deepRun=0;if(s.deepRun>1){s.deepRun=0;s.x=xx;s.z=zz;crash(s,`一刀吃太深：${zMove?'单边':'端面'}吃 ${dep.toFixed(1)} 毫米（超过 ${n2(lmt)}）。多半是坐标写错了，真车会打刀`);return false;}}
+      s.dirty=true;s.cutNow=true;
+      if(a>0)s.cut[a-1]=1;
+      for(let i=a;i<=b;i++){if(!(s.r[i]>s.ri[i]))continue;const c0=s.r[i],c1=s.ri[i];
+        if(TT==='grv'){s.r[i]=Math.max(s.ri[i],Math.min(s.r[i],tip));}
+        else if(TT==='od'){const L=lim(i);if(s.r[i]>L){if(s.curThr>0&&!s.tp[i]){s.tp[i]=s.curThr;s.tmaj[i]=s.r[i];}s.r[i]=Math.max(s.ri[i],L);}else continue;}
+        else{const L=lim(i);if(s.ri[i]<L&&s.r[i]>tip-bar)s.ri[i]=Math.min(s.r[i],L);else continue;}
+        if(s.r[i]!==c0||s.ri[i]!==c1)s.cut[i]=1;}
+    }
+  }
+  s.x=x;s.z=z;return true;
+}
+function arcPos(g,f){const a=g.a1+g.da*f;return [2*(g.cr+g.R*Math.sin(a)),g.cz+g.R*Math.cos(a)];}
+function tick(budget){
+  const s=sim;
+  while(budget>1e-9&&s.state==='running'){
+    if(!s.segs)startLine(s);
+    if(s.state!=='running')break;
+    if(s.si>=s.segs.length){s.segs=null;s.li=(s.jumpTo!=null?s.jumpTo:s.li+1);s.jumpTo=null;if(s.li>=PROG.lines.length){s.state='done';break;}if(s.single){s.state='paused';break;}continue;}
+    const g=s.segs[s.si];
+    if(g.end){s.state='done';s.si++;break;}
+    if(g.pause){s.si++;s.state='paused';break;}
+    if(g.bad){crash(s,g.bad);break;}
+    if(g.spinOff){s.spin=false;s.si++;continue;}
+    if(g.dwell!==undefined){const use=Math.min(budget,g.dwell-(g.done||0));g.done=(g.done||0)+use;s.time+=use;s.tWait+=use;budget-=use;if(g.done>=g.dwell-1e-9)s.si++;continue;}
+    if(g.done===0&&g.f===0){s.trail.push({rapid:!!g.rapid,tool:s.tool,pts:[[g.x1,g.z1],[g.x1,g.z1]]});const sp=parseFloat($('simSpeed').value)||30;
+      /* 快移放慢到看得见；倍率越高，快移也跟着快 */
+      const minT=0.45*Math.pow(Math.min(1,30/sp),0.7);g.rk=g.rapid&&g.t>0?Math.max(1,minT*sp/g.t):1;}
+    const rk=g.rk||1,use=Math.min(budget/rk,g.t-g.done);g.done+=use;s.time+=use;if(g.rapid)s.tRap+=use;else s.tCut+=use;budget-=use*rk;
+    const f=g.t>0?Math.min(1,g.done/g.t):1;const tr=s.trail[s.trail.length-1];let ok=true;
+    /* 去料按固定的小步走（每段切成同样多的小步），播放快慢只改变一帧走几步，车出来的形状不变 */
+    if(!g.M)g.M=g.arc?Math.max(1,Math.ceil(Math.abs(g.da)*g.R/0.08)):Math.max(1,Math.ceil(Math.hypot((g.x2-g.x1)/2,g.z2-g.z1)/0.08));
+    if(!g.k)g.k=0;const kt=f>=1?g.M:Math.floor(f*g.M+1e-9);
+    if(g.arc){for(;g.k<kt&&ok;){g.k++;const [px,pz]=arcPos(g,g.k/g.M);ok=moveTo(s,px,pz,false);tr.pts.push([s.x,s.z]);}}
+    else{s.curThr=g.thr||0;for(;g.k<kt&&ok;){g.k++;const q=g.k/g.M;ok=moveTo(s,g.x1+(g.x2-g.x1)*q,g.z1+(g.z2-g.z1)*q,g.rapid,g.nocut);}s.curThr=0;tr.pts[tr.pts.length-1]=[s.x,s.z];}
+    g.f=f; if(!ok)break; if(f>=1)s.si++;
+  }
+  if(s.state==='done'||s.state==='crash'||s.state==='paused')onStop();
+}
+function loop(t){const dt=Math.min(0.05,(t-lastT)/1000);lastT=t;
+  if(sim.state==='running')tick(dt*parseFloat($('simSpeed').value));
+  draw();updateStatus();
+  if(sim.state==='running')raf=requestAnimationFrame(loop);else raf=0;}
+function run(){if(!PROG)return;if(sim.state==='done'||sim.state==='crash'){sim=newSim();if(G3)build3D();}if(sim.taken)return;
+  sim.state='running';$('alarm').hidden=true;$('result').hidden=true;$('kTake').disabled=true;lastT=performance.now();if(!raf)raf=requestAnimationFrame(loop);}
+function onStop(){if(sim.state==='crash'){$('alarm').textContent='报警 · '+sim.msg;$('alarm').hidden=false;}
+  if(sim.state==='done'){showResult();$('kTake').disabled=false;}
+  if(sim.warns.length)showMsgs(analyze(PROG.lines).concat(sim.warns.map(w=>['',w])));
+  if(sim.state!=='paused')renderProg();}
+
+/* ---------------- 平面画面 ---------------- */
+function viewBox(){
+  const p=P;let lo=Math.min(PR.dMin/2,p.D0/2);
+  PR.grooves.forEach(g=>lo=Math.min(lo,g.Dg/2-g.h)); if(p.hole0>0)lo=Math.min(lo,p.hole0/2); if(p.bOn)lo=Math.min(lo,p.hole0/2);
+  /* 小件留的边也跟着小，不然 Φ12 的件在画面里只有一点点 */
+  const mg=Math.max(5,Math.min(26,p.D0*0.45));
+  if(viewMode==='zoom')return {zmin:-p.stick-Math.min(16,mg),zmax:p.Fs+mg,rmin:Math.max(0,lo-Math.min(12,mg)),rmax:p.D0/2+mg,both:false};
+  return {zmin:-p.stick-34,zmax:p.Fs+40,rmin:-(p.D0/2+30),rmax:p.D0/2+40,both:true};
+}
+function draw(){
+  if(!BAD&&viewMode==='3d'&&G3){if(P&&sim&&G3.part)update3D(false);return;}
+  const W=cv.clientWidth,H=cv.clientHeight,dpr=window.devicePixelRatio||1;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);}
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim()||'#8a969c';
+  ctx.fillStyle=col('--screen');ctx.fillRect(0,0,W,H);
+  if(BAD){ctx.fillStyle=col('--amber');ctx.font='15px "Noto Sans SC",sans-serif';ctx.textAlign='center';ctx.fillText('程序还没出来',W/2,H/2-10);ctx.fillStyle=col('--ink-dim');ctx.font='13px "Noto Sans SC",sans-serif';ctx.fillText('先改上面的红字',W/2,H/2+14);ctx.textAlign='left';return;}
+  if(!P||!sim)return;
+  const vb=viewBox(),pad=10,sc=Math.min((W-2*pad)/(vb.zmax-vb.zmin),(H-2*pad)/(vb.rmax-vb.rmin));
+  const ox=pad+((W-2*pad)-(vb.zmax-vb.zmin)*sc)/2,oy=pad+((H-2*pad)-(vb.rmax-vb.rmin)*sc)/2;
+  const X=z=>ox+(z-vb.zmin)*sc,Y=r=>oy+(vb.rmax-r)*sc;
+  ctx.strokeStyle=col('--screen-line');ctx.lineWidth=1;const gs=sc>3?5:(sc>1.2?10:50);ctx.beginPath();
+  for(let z=Math.ceil(vb.zmin/gs)*gs;z<=vb.zmax;z+=gs){ctx.moveTo(X(z)+.5,0);ctx.lineTo(X(z)+.5,H);}
+  for(let r=Math.ceil(vb.rmin/gs)*gs;r<=vb.rmax;r+=gs){ctx.moveTo(0,Y(r)+.5);ctx.lineTo(W,Y(r)+.5);}ctx.stroke();
+  ctx.strokeStyle=col('--ink-dim');ctx.setLineDash([8,4,2,4]);ctx.beginPath();if(vb.rmin<=0){ctx.moveTo(0,Y(0));ctx.lineTo(W,Y(0));}
+  ctx.moveTo(X(0),Y(vb.rmax));ctx.lineTo(X(0),Y(vb.rmin));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=col('--ink-dim');ctx.font='11px "Chakra Petch",sans-serif';ctx.fillText('Z0',X(0)+3,Y(vb.rmax)+12);
+  const s=sim;
+  if(!s.taken){ctx.fillStyle=col('--chuck');const cz=-P.stick,jr=P.D0/2+18;
+    ctx.fillRect(X(cz-22),Y(jr),22*sc,(jr-Math.max(vb.rmin,P.D0/2-8))*sc);
+    ctx.fillRect(X(vb.zmin-5),Y(Math.max(jr+10,vb.rmax)),X(cz-22)-X(vb.zmin-5),(Math.max(jr+10,vb.rmax)-vb.rmin)*sc);
+    if(vb.both)ctx.fillRect(X(cz-22),Y(-P.D0/2+8),22*sc,26*sc);
+    ctx.fillStyle=col('--ink-dim');ctx.fillText('卡盘',X(vb.zmin)+4,Y(vb.rmin)-6);}
+  /* 端面外面没料的格子不画（以前带孔的件会在孔口画出一圈假台阶） */
+  let iE=s.N-1;while(iE>0&&!(s.r[iE]>s.ri[iE]+0.005))iE--;
+  const half=sign=>{ctx.beginPath();const zA=s.z0;let started=false;
+    for(let i=0;i<=iE;i++){const o=dispR(s,i),n=s.ri[i];const ro=vb.both?sign*o:Math.max(o,vb.rmin);if(!started){ctx.moveTo(X(zA+i*DZ),Y(vb.both?sign*n:Math.max(n,vb.rmin)));started=true;}ctx.lineTo(X(zA+i*DZ),Y(ro));}
+    for(let i=iE;i>=0;i--){const n=s.ri[i];ctx.lineTo(X(zA+i*DZ),Y(vb.both?sign*n:Math.max(n,vb.rmin)));}
+    ctx.closePath();const g=ctx.createLinearGradient(0,Y(sign*P.D0/2),0,Y(0));g.addColorStop(0,col('--metal-hi'));g.addColorStop(1,col('--metal'));
+    ctx.fillStyle=g;ctx.fill();ctx.strokeStyle='#8f9aa1';ctx.lineWidth=1;ctx.stroke();
+  };
+  /* 车过的外圆描一道亮边，压在刀路上面，一眼看出工件车成什么样 */
+  const edge=sign=>{ctx.strokeStyle='#ffffff';ctx.lineWidth=2.4;ctx.beginPath();let on=false;
+    for(let i=0;i<s.N;i++){if(s.cut[i]&&s.r[i]>s.ri[i]){const dr=dispR(s,i),yy=Y(vb.both?sign*dr:Math.max(dr,vb.rmin));if(!on){ctx.moveTo(X(s.z0+i*DZ),yy);on=true;}else ctx.lineTo(X(s.z0+i*DZ),yy);}else on=false;}
+    ctx.stroke();};
+  half(1);if(vb.both)half(-1);
+  /* 路线：每把刀一个颜色，实线切削，虚线快移 */
+  for(const t of s.trail){ctx.strokeStyle=tcol(t.tool);ctx.globalAlpha=t.rapid?0.35:0.75;ctx.lineWidth=t.rapid?1:1.4;ctx.setLineDash(t.rapid?[5,4]:[]);ctx.beginPath();
+    t.pts.forEach((q,k)=>{const px=X(q[1]),py=Y(q[0]/2);if(k)ctx.lineTo(px,py);else ctx.moveTo(px,py);});ctx.stroke();}
+  ctx.globalAlpha=1;ctx.setLineDash([]);edge(1);if(vb.both)edge(-1);ctx.lineWidth=1;
+  if(!s.taken){const tr=s.x/2,tz=s.z;ctx.save();ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();
+    if(TY(s)==='od'){/* 外圆正刀（90°机夹刀片）：刀尖在左下，主刀刃朝卡盘，能车到台阶根 */
+      ctx.fillStyle='#55616a';ctx.fillRect(X(tz+1),Y(tr+46),15*sc,34*sc);
+      ctx.fillStyle='#c9a24a';ctx.beginPath();ctx.moveTo(X(tz),Y(tr));ctx.lineTo(X(tz+0.4),Y(tr+10));ctx.lineTo(X(tz+6.6),Y(tr+17.9));ctx.lineTo(X(tz+6.2),Y(tr+7.9));ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#7a5d1c';ctx.lineWidth=1;ctx.stroke();}
+    else if(TY(s)==='bore'){/* 正镗刀（90°机夹刀片）：刀尖朝卡盘，能镗到台阶孔的根 */
+      const bw=BAR(),k=Math.min(1,(bw+2)/10);ctx.fillStyle='#55616a';ctx.fillRect(X(tz+4*k),Y(tr-1.5*k),60*sc,(bw-1)*sc);
+      ctx.fillStyle='#c9a24a';ctx.beginPath();ctx.moveTo(X(tz),Y(tr));ctx.lineTo(X(tz+0.4*k),Y(tr-10*k));ctx.lineTo(X(tz+6.6*k),Y(tr-17.9*k));ctx.lineTo(X(tz+6.2*k),Y(tr-7.9*k));ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#7a5d1c';ctx.lineWidth=1;ctx.stroke();}
+    else{const zl=RIGHT(s)?tz-P.gw:tz;ctx.fillStyle='#c9a24a';ctx.fillRect(X(zl),Y(tr+14),P.gw*sc,14*sc);ctx.fillStyle='#55616a';ctx.fillRect(X(zl-2),Y(tr+42),(P.gw+8)*sc,28*sc);
+      ctx.fillStyle=col('--amber');ctx.beginPath();ctx.arc(X(tz),Y(tr),3,0,Math.PI*2);ctx.fill();}
+    ctx.fillStyle=tcol(s.tool);ctx.font='600 13px "Chakra Petch",sans-serif';
+    ctx.fillText('T'+String(s.tool).padStart(2,'0')+String(s.off).padStart(2,'0'),Math.min(W-50,X(tz)+12),Math.max(38,Y(tr+20)));ctx.restore();
+    const inView=tz>=vb.zmin&&tz<=vb.zmax&&tr<=vb.rmax&&tr>=vb.rmin;
+    if(!inView){ctx.fillStyle=col('--amber');ctx.font='12px "Noto Sans SC",sans-serif';ctx.fillText('刀在换刀点（画面外）',W-140,H-10);}
+  }else{ctx.fillStyle=col('--ok');ctx.font='13px "Noto Sans SC",sans-serif';ctx.fillText('工件已取下，下面看尺寸核对',12,H-12);}
+}
+
+/* ---------------- 3D 车床 ---------------- */
+let G3=null;
+function init3D(){if(G3!==null)return G3;if(!window.THREE||!THREE.OrbitControls){G3=false;return G3;}
+  try{const box=$('v3'),renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+    renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;box.appendChild(renderer.domElement);
+    const scene=new THREE.Scene();scene.background=new THREE.Color(0x2c3d4a);scene.fog=new THREE.Fog(0x2c3d4a,2200,6500);
+    /* 一个简单的"车间"反光环境，金属才有质感 */
+    const pm=new THREE.PMREMGenerator(renderer),es=new THREE.Scene();
+    es.add(new THREE.Mesh(new THREE.BoxGeometry(20,20,20),new THREE.MeshBasicMaterial({color:0x7d8c97,side:THREE.BackSide})));
+    const lamp=(c,x,y,z,w,h)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));m.position.set(x,y,z);m.lookAt(0,0,0);es.add(m);};
+    lamp(0xffffff,0,9.5,0,12,4);lamp(0xcfe2ff,-9.5,3,2,4,8);lamp(0xffe6c4,9.5,2,-3,3,7);lamp(0x9fb3c2,0,2,9.5,10,3);
+    scene.environment=pm.fromScene(es,0.04).texture;pm.dispose();
+    const cam=new THREE.PerspectiveCamera(35,1,1,50000),ctl=new THREE.OrbitControls(cam,renderer.domElement);ctl.rotateSpeed=0.5;ctl.zoomSpeed=0.6;ctl.panSpeed=0.5;
+    scene.add(new THREE.HemisphereLight(0xe6eef4,0x3d4c58,0.8));const d1=new THREE.DirectionalLight(0xffffff,1.15);d1.position.set(400,700,500);scene.add(d1);
+    const d2=new THREE.DirectionalLight(0xa8cde8,0.6);d2.position.set(-500,-100,-400);scene.add(d2);
+    G3={renderer,scene,cam,ctl,box,w:0,h:0,last:0,lastGeo:0};ctl.addEventListener('change',()=>render3D());}catch(e){G3=false;}
+  return G3;}
+const M3=(c,m,r)=>new THREE.MeshStandardMaterial({color:new THREE.Color(c).convertSRGBToLinear(),metalness:m,roughness:r});
+const box3=(w,h,d,mat,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);return m;};
+const cyl3=(r1,r2,len,mat,seg)=>new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,len,seg||32),mat);
+/* 倒圆角的方块：看着像铸件，不像积木 */
+function rbox3(w,h,d,mat,x,y,z,r){r=Math.max(0.5,Math.min(r||4,w/4,h/4,d/4));const sh=new THREE.Shape(),a=w/2-r,b=h/2-r;
+  sh.moveTo(-a,-h/2);sh.lineTo(a,-h/2);sh.quadraticCurveTo(w/2,-h/2,w/2,-b);sh.lineTo(w/2,b);sh.quadraticCurveTo(w/2,h/2,a,h/2);sh.lineTo(-a,h/2);sh.quadraticCurveTo(-w/2,h/2,-w/2,b);sh.lineTo(-w/2,-b);sh.quadraticCurveTo(-w/2,-h/2,-a,-h/2);
+  const geo=new THREE.ExtrudeGeometry(sh,{depth:Math.max(0.1,d-2*r),bevelEnabled:true,bevelThickness:r,bevelSize:0,bevelSegments:2,curveSegments:3});geo.translate(0,0,-(d-2*r)/2);
+  const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);return m;}
+/* 手轮：轮圈 + 三根辐条 + 摇把，轴线朝 +Z */
+function wheel3(R,mat,knob){const g=new THREE.Group();g.add(new THREE.Mesh(new THREE.TorusGeometry(R,Math.max(2,R*0.09),10,36),mat));
+  const hub=cyl3(R*0.22,R*0.22,R*0.35,mat,20);hub.rotation.x=Math.PI/2;g.add(hub);
+  for(let k=0;k<3;k++){const sp=box3(R*0.95,Math.max(2,R*0.08),Math.max(2,R*0.08),mat,0,0,0);sp.geometry.translate(R*0.48,0,0);sp.rotation.z=k*2*Math.PI/3;g.add(sp);}
+  const hd=cyl3(R*0.1,R*0.12,R*0.6,knob,14);hd.rotation.x=Math.PI/2;hd.position.set(R*0.8,R*0.3,R*0.3);g.add(hd);return g;}
+function drop3D(k){const g=G3;if(g[k]){g.scene.remove(g[k]);g[k].traverse(o=>{if(o.geometry)o.geometry.dispose();});g[k]=null;}}
+/* 刀的样子：刀尖在原点，刀朝 -Z（朝主轴中心）伸出去；内孔刀杆顺着主轴方向 */
+/* 四方刀架：刀顺着刀架侧面夹着；工作的那把夹在靠卡盘那一面，横着伸向工件，刀尖在左前角 */
+function toolBase(ty){return ty==='bore'?{x:-136,z:-44.5}:(ty==='grv'?{x:-62,z:-76}:{x:-66,z:-76});}
+function toolMesh(ty){const g=new THREE.Group(),ins=M3(0xd6aa45,0.9,0.25),hold=M3(0x3b4248,0.7,0.35);
+  const bolt=(x,z,y)=>{const b=cyl3(5,5,8,M3(0x9aa3aa,0.85,0.3),12);b.position.set(x,y,z);g.add(b);};
+  if(ty==='bore'){const bw=BAR(),bz=-(bw/2+1.5),bar=cyl3(bw/2,bw/2,180,hold,20);bar.rotation.z=Math.PI/2;bar.position.set(92,0,bz);g.add(bar);
+    const k=Math.min(1,(bw+2)/10),sh=new THREE.Shape();sh.moveTo(0,0);sh.lineTo(0.4*k,-10*k);sh.lineTo(6.6*k,-17.9*k);sh.lineTo(6.2*k,-7.9*k);sh.lineTo(0,0);
+    const ig=new THREE.ExtrudeGeometry(sh,{depth:3,bevelEnabled:false});ig.rotateX(Math.PI/2);ig.translate(0,1.5,0);g.add(new THREE.Mesh(ig,ins));
+    bolt(120,bz,bw/2+4);bolt(160,bz,bw/2+4);}
+  else if(ty==='grv'){const w=P.gw,hw=Math.max(w,16);g.add(box3(w,16,22,ins,w/2,0,11));g.add(box3(hw,20,100,hold,hw/2,0,70));bolt(hw/2,95,14);bolt(hw/2,110,14);}
+  else{/* 外圆正刀：80° 菱形刀片，刀尖朝卡盘，主刀刃顺着端面方向，横着装 */
+    const sh=new THREE.Shape();sh.moveTo(0,0);sh.lineTo(0.4,10);sh.lineTo(6.6,17.9);sh.lineTo(6.2,7.9);sh.lineTo(0,0);
+    const ig=new THREE.ExtrudeGeometry(sh,{depth:4,bevelEnabled:false});ig.rotateX(Math.PI/2);ig.translate(0,2,0);g.add(new THREE.Mesh(ig,ins));
+    g.add(box3(22,18,112,hold,12,0,68));g.add(box3(16,6,14,M3(0x9aa3aa,0.85,0.3),8,5,8));bolt(11,95,13);bolt(11,110,13);}
+  return g;}
+/* 车床放法：主轴轴线沿 X，操作者在前面（+Z），大拖板沿床身走，中拖板往主轴进，方刀架在中拖板上 */
+function build3D(){const g=G3;if(!g||!P||!sim)return;
+  ['mach','part','feedL','rapidL'].forEach(drop3D);
+  const p=P,R=p.D0/2,bodyR=R+28,bodyL=Math.max(46,R*0.5),cz=-p.stick,yt=-p.sS/2,yb=yt-40;
+  g.yt=yt;g.yb=yb;
+  const mach=new THREE.Group();g.mach=mach;g.scene.add(mach);
+  /* 机床漆：灰蓝色铸件、深色护板、亮的导轨和手轮 */
+  const paint=M3(0x56656f,0.25,0.55),paint2=M3(0x48555e,0.25,0.6),dark=M3(0x23292e,0.3,0.65),steel=M3(0xc9d0d5,0.9,0.22),chuckM=M3(0x5c656d,0.7,0.35),jawM=M3(0xa3adb4,0.85,0.28),black=M3(0x1a1f23,0.2,0.5),amberM=M3(0xe0a832,0.3,0.45),glass=new THREE.MeshBasicMaterial({color:0x0e2a3a}),screenM=new THREE.MeshBasicMaterial({color:0x2f8fd0}),keyM=M3(0xf4f6f7,0.1,0.5);
+  const st=new THREE.Group();mach.add(st);g.static=st;
+  const ch=new THREE.Group();
+  const body=cyl3(bodyR,bodyR,bodyL,chuckM,72);body.rotation.z=Math.PI/2;body.position.x=cz-25-bodyL/2;ch.add(body);
+  const face=cyl3(bodyR*0.97,bodyR,5,M3(0x7d8790,0.75,0.3),72);face.rotation.z=Math.PI/2;face.position.x=cz-23;ch.add(face);
+  const jaws=new THREE.Group();for(let k=0;k<3;k++){const j=new THREE.Group(),h2=Math.max(8,bodyR-R-22);
+    j.add(box3(24,22,20,jawM,0,R+11,0));j.add(box3(14,h2,24,jawM,-6,R+22+h2/2,0));j.position.x=cz-12;j.rotation.x=k*2*Math.PI/3;jaws.add(j);}
+  ch.add(jaws);st.add(ch);g.jaws=jaws;
+  /* 车头箱：倒圆的箱体，正面一块操作面板、两个变速旋钮、一条黄色警示条 */
+  const hx=cz-25-bodyL,hH=-yb+bodyR+40,hD=Math.max(bodyR*2.2,220),hcx=hx-128,hcy=yb+hH/2;
+  st.add(rbox3(240,hH,hD,paint,hcx,hcy,0,10));
+  st.add(rbox3(250,16,hD+8,paint2,hcx,yb+hH-4,0,5));
+  /* 数控操作面板：黑边框 + 蓝屏幕 + 两排按键 + 红色急停 */
+  const pY=hcy+hH*0.12,pX=hcx-10,pZ=hD/2;
+  st.add(box3(150,Math.min(hH*0.46,150),6,dark,pX,pY,pZ+1));
+  st.add(box3(84,Math.min(hH*0.30,96),2,screenM,pX-26,pY+Math.min(hH*0.46,150)*0.14,pZ+5));
+  for(let r=0;r<3;r++)for(let c=0;c<4;c++)st.add(box3(11,8,2,keyM,pX+34+c*14,pY+Math.min(hH*0.46,150)*0.30-r*13,pZ+5));
+  for(let c=0;c<8;c++)st.add(box3(9,6,2,keyM,pX-58+c*11.5,pY-Math.min(hH*0.46,150)*0.30,pZ+5));
+  const es=cyl3(8,8,6,M3(0xd0332b,0.2,0.5),20);es.rotation.x=Math.PI/2;es.position.set(pX+58,pY-Math.min(hH*0.46,150)*0.30,pZ+7);st.add(es);
+  st.add(box3(240,8,2,amberM,hcx,yb+hH*0.2,hD/2+1));
+  const nose=cyl3(bodyR*0.55,bodyR*0.6,16,chuckM,48);nose.rotation.z=Math.PI/2;nose.position.x=hx-8;st.add(nose);
+  /* 床身：深色铸件，上面两条亮导轨，底下接屑盘和床脚 */
+  const bx0=hx-250,bx1=Math.max(p.chgZ,100)+420,bzl=-bodyR*0.9,bzr=Math.max(p.chgX/2,R)+230,bd=bzr-bzl,bmx=(bx0+bx1)/2,bmz=(bzl+bzr)/2;
+  st.add(rbox3(bx1-bx0,60,bd,paint2,bmx,yb-30,bmz,6));
+  [0.22,0.78].forEach(f=>{st.add(box3(bx1-bx0,10,24,steel,bmx,yb+5,bzl+bd*f));st.add(box3(bx1-bx0,4,30,dark,bmx,yb-1,bzl+bd*f));});
+  st.add(box3(bx1-bx0+40,14,bd+60,dark,bmx,yb-66,bmz));
+  st.add(box3(bx1-bx0+40,130,bd+30,M3(0x2c353b,0.2,0.7),bmx,yb-138,bmz));
+  /* 尾座：底座 + 套筒座 + 套筒 + 手轮 */
+  const tx=bx1-80,tR=Math.max(32,Math.min(70,-yb*0.35));
+  st.add(rbox3(150,40,170,paint,tx,yb+20,0,6));
+  st.add(rbox3(120,-yb-40+tR*0.2,tR*2,paint,tx,(yb+40)/2+tR*0.1,0,8));
+  const tb=cyl3(tR,tR,140,paint,40);tb.rotation.z=Math.PI/2;tb.position.set(tx,0,0);st.add(tb);
+  const quill=cyl3(18,18,70,steel);quill.rotation.z=Math.PI/2;quill.position.set(tx-90,0,0);st.add(quill);
+  const cen=cyl3(0.5,16,26,steel,24);cen.rotation.z=Math.PI/2;   /* 顶尖尖头朝卡盘 */cen.position.set(tx-138,0,0);st.add(cen);
+  st.add(box3(24,tR*1.1,tR*1.1,dark,tx+76,0,0));   /* 数控尾座：液压的，没有手轮 */
+  /* 大拖板：鞍座 + 前面溜板箱 + 大手轮 */
+  const sad=new THREE.Group();g.saddle=sad;mach.add(sad);
+  sad.add(rbox3(170,24,bd*0.92,paint,0,yb+22,bmz,5));
+  sad.add(rbox3(190,90,30,paint,0,yb-22,bzr+2,6));
+  sad.add(box3(150,6,2,amberM,0,yb+14,bzr+17.5));   /* 数控滑板：没有手轮，由伺服电机走 */
+  /* 中拖板：带亮燕尾导轨，前头一个小手轮 */
+  const cross=new THREE.Group();g.cross=cross;sad.add(cross);
+  const csH=Math.max(14,yt-(yb+34)),csY=yb+34+csH/2;cross.add(rbox3(130,csH,220,paint,0,csY,40,4));
+  [-50,50].forEach(dx=>cross.add(box3(8,4,220,steel,dx,yb+34+csH+1,40)));
+  const TK=Math.max(0.75,Math.min(1.25,P.D0/70));g.tk=TK;   /* 刀架按真车比例，不再缩得很小 */
+  /* 小拖板：转盘 + 斜放的小滑板（不是一根柱子），把刀架托到中心高 */
+  const cmpH=Math.max(8,-26*TK-yt),cw2=104*TK,cd2=110*TK,cy0=yt;
+  const upH=Math.max(4,cmpH),upY=cy0+upH/2;
+  cross.add(rbox3(cw2*0.9,upH,cd2*1.25,paint,8*TK,upY,6*TK+cd2*0.12,Math.min(5,upH/3)));   /* 数控没有小拖板，这里只是刀架底座 */
+  const tur=new THREE.Group();g.turret=tur;cross.add(tur);tur.scale.setScalar(TK);
+  tur.add(box3(92,58,92,M3(0x454d54,0.65,0.32),0,7,0));
+  tur.add(box3(94,4,94,M3(0x30363c,0.6,0.4),0,-23,0));
+  const hd=cyl3(9,11,22,steel,24);hd.position.y=47;tur.add(hd);
+  /* 程序里没用到的刀位空着，不摆刀 */
+  const usedSt=new Set();(PROG?PROG.lines:[]).forEach(l=>{const t=parse(l);if(t.Tstr){const v=t.Tstr,tn=v.length>=3?parseInt(v.slice(0,v.length-2),10):parseInt(v,10);if(tn>0)usedSt.add(slotOf(tn));}});
+  for(let k=0;k<4;k++){if(usedSt.size&&!usedSt.has(k))continue;const ty=P.tmap[k+1]||'od',pv=new THREE.Group(),tm=toolMesh(ty),b=toolBase(ty);pv.rotation.y=-k*Math.PI/2;tm.position.set(b.x,0,b.z);pv.add(tm);tur.add(pv);}
+  const N=180,pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(N*3).fill(-99999),3));
+  g.chips=new THREE.Points(pg,new THREE.PointsMaterial({color:new THREE.Color(p.mat==='ci'?0x5b6065:0xe2e6e9).convertSRGBToLinear(),size:3,sizeAttenuation:true}));g.chips.frustumCulled=false;mach.add(g.chips);
+  g.cv=new Float32Array(N*3);g.cl=new Float32Array(N);g.ci=0;
+  g.cool=new THREE.Mesh(new THREE.CylinderGeometry(1.6,3,1,10,1,true),new THREE.MeshBasicMaterial({color:0x6fc3ff,transparent:true,opacity:0.55}));g.cool.visible=false;mach.add(g.cool);
+  const ci=p.mat==='ci';
+  g.part=new THREE.Mesh(partGeo(),M3(0x9aa3aa,0.6,0.42));g.part.material.envMapIntensity=0.6;g.part.material.vertexColors=true;g.part.material.side=THREE.DoubleSide;g.part.rotation.z=-Math.PI/2;g.scene.add(g.part);
+  g.feedL=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({vertexColors:true,depthTest:false}));
+  g.rapidL=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({vertexColors:true,dashSize:3,gapSize:2,depthTest:false,transparent:true,opacity:0.8}));
+  g.feedL.renderOrder=g.rapidL.renderOrder=9;g.scene.add(g.feedL,g.rapidL);frame3D(false);}
+/* 车过螺纹的地方画成一齿一齿的（大径到小径），不是一根光圆柱 */
+function dispR(s,i){const r=s.r[i];if(!(s.tp&&s.tp[i]>0&&s.tmaj[i]>r+0.005))return r;const p=s.tp[i],z=s.z0+i*DZ,ph=((z%p)+p)%p/p,t=1-Math.abs(2*ph-1);return r+(s.tmaj[i]-r)*Math.min(1,t*1.15);}
+function partGeo(){const s=sim,pts=[];let iE=s.N-1;while(iE>0&&!(s.r[iE]>s.ri[iE]+0.005))iE--;const zE=s.z0+iE*DZ;
+  /* 切断了：取下来的只是切下的那一节，卡盘里剩的料头不算 */
+  let iS=0;if(s.taken){for(let i=iE;i>0;i--){if(!(s.r[i]>s.ri[i]+0.005)){iS=i+1;break;}}}
+  pts.push(new THREE.Vector2(Math.max(0.01,s.ri[iS]),s.z0+iS*DZ));
+  for(let i=iS;i<iE;i++){if(i%2&&!(s.tp[i]>0))continue;pts.push(new THREE.Vector2(Math.max(0.02,dispR(s,i)),s.z0+i*DZ));}
+  pts.push(new THREE.Vector2(Math.max(0.02,s.r[iE]),zE));
+  pts.push(new THREE.Vector2(Math.max(0.01,Math.min(s.ri[iE],s.r[iE])),zE));
+  for(let i=iE-(iE%2);i>=iS;i-=2)pts.push(new THREE.Vector2(Math.max(0.01,Math.min(s.ri[i],s.r[i])),s.z0+i*DZ));
+  pts.push(new THREE.Vector2(Math.max(0.01,s.ri[iS]),s.z0+iS*DZ));
+  const geo=new THREE.LatheGeometry(pts,72);
+  /* 车过的地方亮（新车的金属面），没车的毛坯面发乌 */
+  const ci=P.mat==='ci',dk=ci?[0.30,0.31,0.32]:[0.55,0.57,0.58],br=[1,0.98,0.93],np=pts.length,cl=new Float32Array(geo.attributes.position.count*3),pc=[];
+  const ix=j=>{if(j<=0)return 0;if(j>=np-1)return 0;const q=pts[j].y;return Math.max(0,Math.min(s.N-1,Math.round((q-s.z0)/DZ)));};
+  const capCut=s.taken||iE<s.N-3;   /* 端面真车掉一层才算车过；只车了外圈，中间没车到的端面还是毛坯色 */
+  for(let j=0;j<np;j++){const i=ix(j),onCap=Math.abs(pts[j].y-zE)<1e-6;const c=(onCap?capCut:s.cut[i])?br:dk;pc.push(c);}
+  for(let v=0;v<geo.attributes.position.count;v++){const c=pc[v%np];cl[v*3]=c[0];cl[v*3+1]=c[1];cl[v*3+2]=c[2];}
+  geo.setAttribute('color',new THREE.BufferAttribute(cl,3));
+  return geo;}
+function frame3D(taken){const g=G3,p=P,R=p.D0/2;
+  if(taken){const s=sim;let iE=s.N-1;while(iE>0&&!(s.r[iE]>s.ri[iE]+0.005))iE--;let iS=0;for(let i=iE;i>0;i--){if(!(s.r[i]>s.ri[i]+0.005)){iS=i+1;break;}}
+    const z1=s.z0+iS*DZ,z2=s.z0+iE*DZ,cx=(z1+z2)/2,d=Math.max(R*2.6,(z2-z1)*3);g.ctl.target.set(cx,0,0);g.cam.position.set(cx+d*0.55,d*0.45,d*0.8);g.ctl.autoRotate=true;g.ctl.autoRotateSpeed=2;}
+  else{const sz=Math.max(p.D0,p.stick+80),d=(sz*1.55+170)*1.35,tx=-p.stick*0.35+40;g.ctl.target.set(tx,-R*0.15,R*0.35+20);g.cam.position.set(tx+d*0.12,d*0.32,R*0.35+20+d*0.95);g.ctl.autoRotate=false;}
+  g.ctl.update();}
+function update3D(force){const g=G3,s=sim,now=performance.now();
+  const w=g.box.clientWidth,h=g.box.clientHeight;if(w&&h&&(w!==g.w||h!==g.h)){g.w=w;g.h=h;g.renderer.setSize(w,h,false);g.cam.aspect=w/h;g.cam.updateProjectionMatrix();}
+  const dt=Math.min(0.1,(now-(g.last||now))/1000);g.last=now;
+  if(force||(s.dirty&&now-g.lastGeo>90)){g.part.geometry.dispose();g.part.geometry=partGeo();g.lastGeo=now;s.dirty=false;}
+  const show=!s.taken;g.static.visible=g.saddle.visible=g.feedL.visible=g.rapidL.visible=g.chips.visible=show;
+  if(s.spin&&s.state==='running')g.jaws.rotation.x+=dt*7;
+  /* 换刀：刀架转过去 */
+  const seg=s.segs&&s.segs[s.si],turn=seg&&seg.turn&&seg.dwell!==undefined?seg:null;let th=s.theta,bx,bz;
+  if(turn){let f=Math.min(1,(turn.done||0)/turn.dwell);f=f<.5?2*f*f:1-Math.pow(-2*f+2,2)/2;th=turn.turn.from+(turn.turn.to-turn.turn.from)*f;
+    const b0=toolBase(P.tmap[turn.turn.fromTool]||'od'),b1=toolBase(P.tmap[turn.turn.toTool]||'od');bx=b0.x+(b1.x-b0.x)*f;bz=b0.z+(b1.z-b0.z)*f;}
+  else{const b=toolBase(TY(s));bx=b.x;bz=b.z;}
+  const tipX=RIGHT(s)?s.z-P.gw:s.z,tipZ=s.x/2;
+  const tk=g.tk||1;g.turret.rotation.y=th;g.saddle.position.x=tipX-bx*tk;g.cross.position.z=tipZ-bz*tk;
+  /* 铁屑 */
+  const P3=g.chips.geometry.attributes.position.array;
+  if(s.cutNow&&s.state==='running'&&show){for(let n=0;n<3;n++){const i=g.ci;g.ci=(g.ci+1)%g.cl.length;
+    P3[i*3]=tipX+(Math.random()-.5)*2;P3[i*3+1]=2;P3[i*3+2]=tipZ+1;g.cv[i*3]=(Math.random()-.5)*60;g.cv[i*3+1]=40+Math.random()*90;g.cv[i*3+2]=30+Math.random()*80;g.cl[i]=0.9+Math.random()*0.6;}}
+  s.cutNow=false;
+  for(let i=0;i<g.cl.length;i++){if(g.cl[i]<=0)continue;g.cl[i]-=dt;g.cv[i*3+1]-=420*dt;P3[i*3]+=g.cv[i*3]*dt;P3[i*3+1]+=g.cv[i*3+1]*dt;P3[i*3+2]+=g.cv[i*3+2]*dt;
+    if(P3[i*3+1]<g.yb||g.cl[i]<=0){g.cl[i]=0;P3[i*3+1]=-99999;}}
+  g.chips.geometry.attributes.position.needsUpdate=true;
+  /* 冷却水 */
+  const coolOn=s.cool&&s.spin&&show&&s.state==='running';g.cool.visible=coolOn;
+  if(coolOn){const a=new THREE.Vector3(tipX+30,90,tipZ+60),b=new THREE.Vector3(tipX,2,tipZ+2),d=b.clone().sub(a),len=a.distanceTo(b);
+    g.cool.scale.set(1,len,1);g.cool.position.copy(a).add(b).multiplyScalar(0.5);g.cool.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());}
+  const fa=[],ra=[],fc=[],rc=[],LC=g.lc||(g.lc={}),lc=n=>LC[n]||(LC[n]=new THREE.Color(tcol(n)).convertSRGBToLinear());
+  for(const t of s.trail){const a=t.rapid?ra:fa,cc=t.rapid?rc:fc,c=lc(t.tool);for(let k=1;k<t.pts.length;k++){const p0=t.pts[k-1],p1=t.pts[k];a.push(p0[1],0,p0[0]/2,p1[1],0,p1[0]/2);cc.push(c.r,c.g,c.b,c.r,c.g,c.b);}}
+  g.feedL.geometry.dispose();g.feedL.geometry=new THREE.BufferGeometry();g.feedL.geometry.setAttribute('position',new THREE.Float32BufferAttribute(fa,3));g.feedL.geometry.setAttribute('color',new THREE.Float32BufferAttribute(fc,3));
+  g.rapidL.geometry.dispose();g.rapidL.geometry=new THREE.BufferGeometry();g.rapidL.geometry.setAttribute('position',new THREE.Float32BufferAttribute(ra,3));g.rapidL.geometry.setAttribute('color',new THREE.Float32BufferAttribute(rc,3));g.rapidL.computeLineDistances();
+  render3D();}
+function render3D(){if(G3&&viewMode==='3d')G3.renderer.render(G3.scene,G3.cam);}
+function spinLoop(){if(viewMode==='3d'&&sim&&sim.taken&&G3){G3.ctl.update();render3D();requestAnimationFrame(spinLoop);}}
+function setView(m){viewMode=m;
+  ['v3d','vZoom','vFull'].forEach(id=>$(id).setAttribute('aria-pressed',String((id==='v3d'&&m==='3d')||(id==='vZoom'&&m==='zoom')||(id==='vFull'&&m==='full'))));
+  const is3=m==='3d'&&G3&&!BAD;$('v3').hidden=!is3;$('cv').hidden=!!is3;$('hint3').hidden=!is3;draw();if(is3&&sim&&sim.taken)spinLoop();}
+
+/* ---------------- 状态和程序 ---------------- */
+function updateStatus(){const s=sim;if(!s||!PROG)return;
+  $('sT').textContent='T'+String(s.tool).padStart(2,'0')+String(s.off).padStart(2,'0');
+  $('sS').textContent=s.spin?String(Math.round(rpmAt(s,s.x))):'0';$('sF').textContent=s.g99?fmt(s.F):String(Math.round(s.F));
+  $('sX').textContent=s.x.toFixed(3);$('sZ').textContent=s.z.toFixed(3);$('sTime').textContent=mmss(s.time);
+  $('sState').textContent={idle:'准备好',running:'运行中',paused:s.single?'单段停':'暂停',done:'加工完',crash:'报警'}[s.state];
+  $('sState').style.background=s.state==='crash'?'#ff5a4a':(s.state==='done'?'#4cc483':(s.state==='running'?'#7dff9e':''));
+  $('sN').textContent='N'+(Math.min(s.li,PROG.lines.length-1)+1);
+  $('kStart').classList.toggle('on',s.state==='running');$('kHold').classList.toggle('on',s.state==='paused'&&!s.single);$('kSingle').classList.toggle('on',!!s.single);
+  $('modeTag').textContent=(s.g99?'G99 每转进给':'G98 每分进给')+(s.cool?' · 冷却水开':'');
+  const cur=document.querySelector('#progList li.cur'),li=$('progList').children[Math.min(s.li,PROG.lines.length-1)];
+  if(cur!==li){if(cur)cur.classList.remove('cur');if(li)li.classList.add('cur');}
+  if(li&&performance.now()>progHold){const bx=$('prog');const want=Math.max(0,li.offsetTop-bx.clientHeight/2+li.offsetHeight/2);if(Math.abs(bx.scrollTop-want)>2)bx.scrollTop=want;}}
+let progHold=0;['touchstart','touchmove','wheel','mousedown'].forEach(ev=>$('prog').addEventListener(ev,()=>{progHold=performance.now()+3000;},{passive:true}));
+function renderProg(){const ol=$('progList');ol.textContent='';
+  PROG.lines.forEach((l,i)=>{const li=document.createElement('li');const n=document.createElement('span');n.className='n';n.textContent=String(i+1);const c=document.createElement('span');c.textContent=l;li.append(n,c);if(sim&&i===sim.crashLine)li.classList.add('crash');ol.appendChild(li);});
+  if(sim){const li=ol.children[Math.min(sim.li,PROG.lines.length-1)];if(li)li.classList.add('cur');}}
+
+/* ---------------- 结果和尺寸核对 ---------------- */
+function showResult(){const p=P,each=sim.time+p.load,day=each>0?Math.floor(p.hours*3600/each):0;
+  $('rSplit').innerHTML=`<span>切削 <b>${mmss(sim.tCut)}</b></span><span>快速移动 <b>${mmss(sim.tRap)}</b>（按每分钟 ${n2(p.rapid)} 毫米算）</span><span>换刀、等主轴 <b>${mmss(sim.tWait)}</b></span>`;
+  $('rTime').textContent=mmss(sim.time);$('rEach').textContent=mmss(each);$('rDay').innerHTML=day+' <small>件</small>';$('result').hidden=false;$('checkBox').hidden=true;}
+const rAt=z=>{const i=Math.round((z-sim.z0)/DZ);return(i>=0&&i<sim.N)?sim.r[i]:0;};
+const riAt=z=>{const i=Math.round((z-sim.z0)/DZ);return(i>=0&&i<sim.N)?sim.ri[i]:0;};
+function check(){if(MODE==='own'){shapeTable();return;}
+  {const box=$('checkBox');box.querySelector('h2').textContent='尺寸核对（拿模拟车出来的零件对你填的尺寸）';box.querySelector('thead tr').innerHTML='<th>项目</th><th>要求</th><th>车出来</th><th>结论</th>';}
+  const p=P,rows=[],add=(a,b,c,ok)=>rows.push([a,b,c,ok]);
+  let face=sim.z0;for(let i=sim.N-1;i>=0;i--){if(sim.r[i]>sim.ri[i]+0.01){face=sim.z0+(i+1)*DZ;break;}}
+  add('端面位置','Z0',face.toFixed(2),Math.abs(face)<=0.06);
+  const inG=z=>PR.grooves.some(g=>{for(let i=0;i<g.n;i++){const c=g.zr-(g.e+i*g.p);if(z>c-g.B/2-0.3&&z<c+g.B/2+0.3)return true;}return false;});
+  const done=new Set();
+  PR.prims.forEach(q=>{if(q.z1===q.z2||done.has(q.seg))return;const s=SEG[q.seg];if(s.t==='ch')return;done.add(q.seg);if(s.bk&&Math.abs(s.bk-s.d)<0.005)return;
+    let z=(q.z1+q.z2)/2;if(inG(z)){for(let t=q.z1-0.5;t>q.z2+0.5;t-=0.5)if(!inG(t)){z=t;break;}}
+    const need=2*rp(PR,z),got=2*rAt(z);
+    add(`第${q.seg+1}块 ${BT[s.t]}`+(s.f?'（精车）':'')+(s.t==='od'?'':`（Z${z.toFixed(1)} 处）`),'Φ'+need.toFixed(2),'Φ'+got.toFixed(2),Math.abs(need-got)<=(s.t==='od'?0.03:0.1));});
+  PR.grooves.forEach(g=>{const Db=g.Dg-2*g.h;for(let i=0;i<g.n;i++){const c=g.zr-(g.e+i*g.p);
+    const d=2*rAt(c);add(`第${i+1}道槽 槽底`,'Φ'+fmt(Db),'Φ'+d.toFixed(2),Math.abs(d-Db)<=0.03);
+    const lim=g.Dg/2-0.02;let a=c,b=c;while(rAt(a-DZ)<lim&&a>c-g.B)a-=DZ;while(rAt(b+DZ)<lim&&b<c+g.B)b+=DZ;const wv=b-a+DZ;
+    add(`第${i+1}道槽 槽口宽`,fmt(g.B),wv.toFixed(2),Math.abs(wv-g.B)<=0.15);}});
+  if(p.bOn){const d=2*riAt(-p.bL/2);add(p.bFin?'内孔（精镗）':'内孔','Φ'+fmt(p.bD),'Φ'+d.toFixed(2),Math.abs(d-p.bD)<=0.03);
+    if(p.bL<p.stick-0.5){let dep=0;for(let z=-0.2;z>sim.z0;z-=DZ){if(rAt(z)>riAt(z)+0.01&&riAt(z)<p.bD/2-0.05){dep=-z;break;}}add('孔深',fmt(p.bL),dep.toFixed(2),Math.abs(dep-p.bL)<=0.1);}}
+  const tb=$('checkBody');tb.textContent='';
+  rows.forEach(r=>{const tr=document.createElement('tr');[r[0],r[1],r[2]].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.appendChild(td);});
+    const td=document.createElement('td');td.textContent=r[3]?'对':'不对，查程序';td.className=r[3]?'ok':'bad';tr.appendChild(td);tb.appendChild(tr);});
+  $('checkBox').hidden=false;}
+
+/* ---------------- 积木编辑 ---------------- */
+const sk=$('sk'),sctx=sk.getContext('2d');let skMap=null;
+const FIELDS={
+  od:[['bk','毛坯多粗 Φ','没车之前多粗；和车成一样就是这段不车'],['d','车成多粗 Φ','车完这一段多粗'],['L','这段多长','有倒角的话包含倒角']],
+  ch:[['c','倒角 C','倒在后面那段外圆的边上']],
+  tp:[['bk','毛坯多粗 Φ',''],['d','大头车成多粗 Φ','锥度车到多大'],['L','锥长','锥度这一段多长']],
+  arc:[['bk','毛坯多粗 Φ',''],['d','车到多粗 Φ','圆弧结束的地方'],['L','这段多长','沿着工件方向'],['R','半径 R','圆弧半径']],
+  grv:[['n','槽数',''],['B','槽口宽',''],['b','槽底宽',''],['h','槽深','单边'],['e','第一道槽中心','离这段外圆的右边多远'],['p','槽距','中心到中心']],
+};
+function lastB(){for(let i=SEG.length-1;i>=0;i--){const s=SEG[i];if(s.bk)return s.bk;}return 0;}
+function lastD(){for(let i=SEG.length-1;i>=0;i--){const s=SEG[i];if(s.d)return s.d;}return Math.max(10,(parseFloat($('D0').value)||100)-10);}
+function bLabel(s){if(s.t==='od')return `外圆 毛坯Φ${n2(s.bk)} → Φ${n2(s.d)} 长${n2(s.L)}`;if(s.t==='ch')return `倒角 C${n2(s.c)}`;if(s.t==='tp')return `锥度 到 Φ${n2(s.d)} × ${n2(s.L)}`;
+  if(s.t==='arc')return `圆弧 R${n2(s.R)} 到 Φ${n2(s.d)}`+(s.cv?' 外凸':' 内凹');return `皮带槽 × ${n2(s.n)}`;}
+function renderBlocks(){const box=$('blist');box.textContent='';
+  SEG.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.className='bchip'+(i===SEL?' on':'');b.innerHTML=`<i>${i+1}</i>${bLabel(s)}`+(CANFIN[s.t]&&s.f?'<span class="fin">精车</span>':'');b.onclick=()=>{SEL=i;renderBlocks();renderEdit();drawSketch();};box.appendChild(b);});
+  $('sumS').textContent=SEG.length?`${SEG.length} 块 · 长 ${PR&&PR.prims.length?n2(-PR.zEnd):'–'}`:'空';}
+function renderEdit(){const box=$('bedit');box.textContent='';const s=SEG[SEL];if(!s){box.innerHTML='<p class="note">点上面的"+ 外圆"开始。</p>';return;}
+  const h=document.createElement('div');h.className='bhead';h.innerHTML=`<b>第 ${SEL+1} 块：${BT[s.t]}</b>`;box.appendChild(h);
+  FIELDS[s.t].forEach(([k,lab,hint])=>{const l=document.createElement('label');l.className='field';l.innerHTML=`<span>${lab}${hint?` <small>${hint}</small>`:''}</span>`;
+    const inp=document.createElement('input');inp.type='number';inp.step='any';inp.inputMode='decimal';inp.value=s[k];inp.id='blk_'+k;
+    inp.oninput=()=>{const v=parseFloat(inp.value);if(isFinite(v)){s[k]=v;renderBlocks();schedule();}};l.appendChild(inp);box.appendChild(l);});
+  if(s.t==='arc'){const l=document.createElement('label');l.className='field';l.innerHTML='<span>方向</span>';const sel=document.createElement('select');sel.id='blk_cv';
+    sel.innerHTML='<option value="1">外凸（像球面、圆角）</option><option value="0">内凹（像凹槽）</option>';sel.value=s.cv?'1':'0';sel.onchange=()=>{s.cv=sel.value==='1'?1:0;renderBlocks();schedule();};l.appendChild(sel);box.appendChild(l);}
+  if(CANFIN[s.t]){const l=document.createElement('label');l.className='radio finchk';
+    l.innerHTML='<input type="checkbox" id="blk_f"> <span>这段公差紧，要精车 <small class="sub">粗车刀留精车量，换精车刀再走一刀。不勾就是粗车刀一刀车到尺寸'+(SEG[SEL-1]&&SEG[SEL-1].t==='ch'?'。前面的倒角跟着一起精车':'')+'</small></span>';
+    const cb=l.querySelector('input');cb.checked=!!s.f;cb.onchange=()=>{s.f=cb.checked?1:0;renderBlocks();schedule();};box.appendChild(l);}
+  const row=document.createElement('div');row.className='brow';
+  const mk=(t,f)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=t;b.onclick=f;row.appendChild(b);};
+  mk('往端面挪',()=>{if(SEL>0){[SEG[SEL-1],SEG[SEL]]=[SEG[SEL],SEG[SEL-1]];SEL--;afterEdit();}});
+  mk('往卡盘挪',()=>{if(SEL<SEG.length-1){[SEG[SEL+1],SEG[SEL]]=[SEG[SEL],SEG[SEL+1]];SEL++;afterEdit();}});
+  mk('删掉这块',()=>{SEG.splice(SEL,1);SEL=Math.max(0,Math.min(SEL,SEG.length-1));afterEdit();});
+  box.appendChild(row);}
+function afterEdit(){renderBlocks();renderEdit();rebuild();}
+document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const t=b.dataset.add,d=lastD();
+  if(t==='grv'&&(!SEG.length||SEG[SEG.length-1].t!=='od')){$('errors').innerHTML='<ul><li>皮带槽要紧跟在一段外圆后面，先加外圆</li></ul>';$('errors').hidden=false;return;}
+  const B=Math.max(lastB(),SEG.length?d+14:d+4);
+  if(t==='od')SEG.push({t:'od',bk:Math.max(B,d+4),d:SEG.length?d+10:d,L:20});
+  if(t==='ch'){SEG.push({t:'ch',c:1});SEG.push({t:'od',bk:Math.max(B,d+14),d:SEG.length>1?d+10:d,L:20});}
+  if(t==='tp')SEG.push({t:'tp',bk:Math.max(B,d+14),d:d+10,L:10});
+  if(t==='arc')SEG.push({t:'arc',bk:Math.max(B,d+14),d:d+10,L:5,R:5,cv:1});
+  if(t==='grv')SEG.push({t:'grv',n:2,B:13,b:5,h:10,e:14,p:15});
+  SEL=t==='ch'?SEG.length-2:SEG.length-1;afterEdit();});
+function drawSketch(){
+  const W=sk.clientWidth,H=sk.clientHeight,dpr=window.devicePixelRatio||1;if(!W)return;
+  if(sk.width!==Math.round(W*dpr)||sk.height!==Math.round(H*dpr)){sk.width=Math.round(W*dpr);sk.height=Math.round(H*dpr);}
+  const c=sctx;c.setTransform(dpr,0,0,dpr,0,0);const css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim()||'#8a969c';
+  c.fillStyle=col('--screen');c.fillRect(0,0,W,H);
+  const D0=parseFloat($('D0').value)||100,st=(P&&P.stick)||parseFloat($('stick').value)||50,Fs=parseFloat($('Fs').value)||0,hole=parseFloat($('hole0').value)||0,BO=$('bOn').checked,BD=parseFloat($('bD').value)||0,BL=parseFloat($('bL').value)||0;
+  const pr=PR&&PR.prims?PR.prims:[];const len=Math.max(st,pr.length?-PR.zEnd:0),DS=Math.max(D0,pr.length?PR.dMax:0);
+  const padL=26,padR=34,padY=26,sc=Math.min((W-padL-padR)/(len+Fs+4),(H-2*padY)/(DS+4));
+  const ox=W-padR-(Fs+2)*sc,X=z=>ox+z*sc,cy=H/2,Y=r=>cy-r*sc;
+  c.setLineDash([4,3]);c.strokeStyle=col('--ink-dim');c.lineWidth=1;
+  if(PR&&PR.blank&&PR.blank.length){[1,-1].forEach(sg=>{c.beginPath();c.moveTo(X(Fs),Y(0));c.lineTo(X(Fs),Y(sg*PR.blank[0].b/2));PR.blank.forEach(q=>{c.lineTo(X(q.z1),Y(sg*q.b/2));c.lineTo(X(q.z2),Y(sg*q.b/2));});c.lineTo(X(-st),Y(sg*PR.blank[PR.blank.length-1].b/2));c.stroke();});}
+  else c.strokeRect(X(-st),Y(D0/2),(st+Fs)*sc,D0*sc);
+  if(hole>0){c.strokeRect(X(-st),Y(hole/2),(st+Fs)*sc,hole*sc);}
+  c.beginPath();c.moveTo(X(-st)-8,cy);c.lineTo(X(Fs)+10,cy);c.stroke();c.setLineDash([]);
+  c.fillStyle='#3a444b';c.fillRect(X(-st)-14,Y(D0/2)-4,10,D0*sc+8);
+  c.fillStyle=col('--ink-dim');c.font='11px "Noto Sans SC",sans-serif';c.fillText('卡盘',2,14);c.textAlign='right';c.fillText('端面 Z0',W-2,14);c.textAlign='left';
+  skMap=[];
+  if(pr.length){const blankEnd=PR.zEnd;
+    const path=sign=>{c.beginPath();c.moveTo(X(0),Y(sign*(BO?BD/2:hole/2)));pr.forEach((q,k)=>{if(!k)c.lineTo(X(q.z1),Y(sign*q.r1));
+      if(q.k==='arc'){for(let t=1;t<=16;t++){const z=q.z1+(q.z2-q.z1)*t/16;c.lineTo(X(z),Y(sign*arcR(q,z)));}}else c.lineTo(X(q.z2),Y(sign*q.r2));});
+      const bE=PR.blank.length?PR.blank[PR.blank.length-1].b/2:D0/2;c.lineTo(X(blankEnd),Y(sign*bE));c.lineTo(X(-st),Y(sign*bE));const ir=hole/2;c.lineTo(X(-st),Y(sign*ir));
+      if(BO){c.lineTo(X(-BL),Y(sign*ir));c.lineTo(X(-BL),Y(sign*BD/2));}c.closePath();};
+    c.fillStyle='rgba(169,182,189,.55)';c.strokeStyle='#cfd8dc';path(1);c.fill();c.stroke();path(-1);c.fill();c.stroke();
+    PR.grooves.forEach(g=>{for(let i=0;i<g.n;i++){const zc=g.zr-(g.e+i*g.p);[1,-1].forEach(sg=>{c.fillStyle=col('--screen');c.beginPath();
+      c.moveTo(X(zc-g.B/2),Y(sg*g.Dg/2));c.lineTo(X(zc-g.b/2),Y(sg*(g.Dg/2-g.h)));c.lineTo(X(zc+g.b/2),Y(sg*(g.Dg/2-g.h)));c.lineTo(X(zc+g.B/2),Y(sg*g.Dg/2));c.closePath();c.fill();
+      c.strokeStyle=g.seg===SEL?col('--amber'):'#cfd8dc';c.lineWidth=g.seg===SEL?2:1;c.stroke();});}skMap.push({z1:g.zr,z2:g.zl,seg:g.seg,pri:2});});
+    // 选中的块描黄，标尺寸
+    const segZ={};pr.forEach(q=>{const a=segZ[q.seg]||(segZ[q.seg]={z1:q.z1,z2:q.z2,r:0});a.z1=Math.max(a.z1,q.z1);a.z2=Math.min(a.z2,q.z2);a.r=Math.max(a.r,q.r1,q.r2);});
+    Object.entries(segZ).forEach(([i,a])=>{i=+i;skMap.push({z1:a.z1,z2:a.z2,seg:i,pri:1});
+      const s=SEG[i],on=i===SEL;
+      if(on){c.strokeStyle=col('--amber');c.lineWidth=2.5;c.beginPath();pr.filter(q=>q.seg===i).forEach(q=>{c.moveTo(X(q.z1),Y(q.r1));if(q.k==='arc'){for(let t=1;t<=16;t++){const z=q.z1+(q.z2-q.z1)*t/16;c.lineTo(X(z),Y(arcR(q,z)));}}else c.lineTo(X(q.z2),Y(q.r2));});c.stroke();
+        c.fillStyle='rgba(240,180,60,.12)';c.fillRect(X(a.z1),Y(a.r),(a.z2-a.z1)*sc,a.r*2*sc);}
+      c.fillStyle=on?col('--amber'):col('--ink-dim');c.font=(on?'600 ':'')+'11px "Chakra Petch","Noto Sans SC",sans-serif';c.textAlign='center';
+      const mx=X((a.z1+a.z2)/2);
+      if(s.t==='ch')c.fillText('C'+n2(s.c),mx,Y(a.r)-6);
+      else{c.fillText((s.t==='arc'?'R'+n2(s.R)+' ':'')+(s.bk?'Φ'+n2(s.bk)+'→':'')+'Φ'+n2(s.d)+(s.f?' 精':''),mx,Y(Math.max(a.r,(s.bk||0)/2))-6);
+        const yb=Y(-a.r)+12;c.fillText(n2(s.t==='od'?s.L:s.L),mx,yb+4);
+        if(on){c.strokeStyle=col('--amber');c.lineWidth=1;c.beginPath();c.moveTo(X(a.z1),yb-6);c.lineTo(X(a.z2),yb-6);c.stroke();}}
+      c.textAlign='left';});
+  }
+  if(BO){c.fillStyle=col('--cyan');c.font='11px "Chakra Petch","Noto Sans SC",sans-serif';c.fillText('孔Φ'+n2(BD)+' 深'+n2(BL),Math.max(4,X(0)-90),cy-3);}
+}
+sk.addEventListener('click',ev=>{if(!skMap)return;const r=sk.getBoundingClientRect(),W=sk.clientWidth;
+  const D0=parseFloat($('D0').value)||100,st=(P&&P.stick)||parseFloat($('stick').value)||50,Fs=parseFloat($('Fs').value)||0;const pr=PR&&PR.prims?PR.prims:[];const len=Math.max(st,pr.length?-PR.zEnd:0);
+  const DS=Math.max(D0,pr.length?PR.dMax:0),H=sk.clientHeight,sc=Math.min((W-26-34)/(len+Fs+4),(H-52)/(DS+4)),ox=W-34-(Fs+2)*sc;const z=(ev.clientX-r.left-ox)/sc;
+  const hits=skMap.filter(m=>z<=m.z1+0.5&&z>=m.z2-0.5).sort((a,b)=>b.pri-a.pri);if(hits.length){SEL=hits[0].seg;renderBlocks();renderEdit();drawSketch();}});
+
+/* ---------------- 按键 ---------------- */
+$('kStart').onclick=run;
+$('kHold').onclick=()=>{if(sim.state==='running'){sim.state='paused';updateStatus();}};
+$('kSingle').onclick=()=>{sim.single=!sim.single;$('kSingle').setAttribute('aria-pressed',String(sim.single));};
+$('kReset').onclick=()=>{if(BAD||!PROG)return;const single=sim.single;sim=newSim();sim.single=single;$('alarm').hidden=true;$('result').hidden=true;$('kTake').disabled=true;if(G3)build3D();renderProg();draw();updateStatus();};
+$('kTake').onclick=()=>{if(sim.state!=='done')return;sim.taken=true;sim.trail=[];$('kTake').disabled=true;if(G3){update3D(true);frame3D(true);}draw();check();spinLoop();};
+const KNOB=[30,50,100,200];let knobI=0;
+function setKnob(i){knobI=i;$('simSpeed').value=String(KNOB[i]);$('knob').querySelector('.ptr').style.transform=`rotate(${(i-1.5)*45}deg)`;
+  [...document.querySelectorAll('.scale span')].forEach((e,k)=>e.classList.toggle('on',k===i));$('knob').setAttribute('aria-label',`模拟倍率 ${KNOB[i]} 倍，点一下换一档`);}
+$('knob').onclick=()=>setKnob((knobI+1)%KNOB.length);setKnob(0);
+$('kEstop').onclick=()=>{if(sim.state==='running'||sim.state==='paused'){sim.state='crash';sim.crashLine=sim.li;sim.msg=`急停：停在第 ${sim.li+1} 行。按"复位"重新开始`;onStop();updateStatus();draw();}};
+$('v3d').onclick=()=>setView('3d');$('vZoom').onclick=()=>setView('zoom');$('vFull').onclick=()=>setView('full');
+$('ack').onchange=()=>{$('copyBtn').disabled=!$('ack').checked||!PROG;};
+$('copyBtn').onclick=()=>{const text=codeEl.value;const done=()=>{$('copied').hidden=false;setTimeout(()=>{$('copied').hidden=true;},1800);};
+  const fb=()=>{const ta=$('fallback');ta.value=text;ta.hidden=false;ta.focus();ta.select();};try{navigator.clipboard.writeText(text).then(done,fb);}catch(e){fb();}};
+document.querySelectorAll('#form .done').forEach(b=>b.onclick=()=>{const d=b.closest('details');d.open=false;d.querySelector('summary').focus();});
+document.querySelectorAll('.chipset').forEach(cs=>{const inp=$(cs.dataset.for);cs.querySelectorAll('button').forEach(b=>b.onclick=()=>{inp.value=b.textContent;schedule();markChips();});});
+function markChips(){document.querySelectorAll('.chipset').forEach(cs=>{const v=$(cs.dataset.for).value;cs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.textContent===v)));});}
+/* 样品：表单里一排、车床上方一排，用同一套 */
+function loadPreset(key){const pr=PRESETS[key];if(!pr)return;CUR_PRE=key;
+  /* 大样品要大车床：临时改床子尺寸，换回别的样品时还原成你原来填的 */
+  if(pr.mach){if(!MACH_SAVE){MACH_SAVE={};Object.keys(pr.mach).forEach(k=>MACH_SAVE[k]=$(k).value);}Object.entries(pr.mach).forEach(([k,v])=>$(k).value=v);}
+  else if(MACH_SAVE){Object.entries(MACH_SAVE).forEach(([k,v])=>$(k).value=v);MACH_SAVE=null;}
+  Object.entries(pr.v).forEach(([k,v])=>$(k).value=v);$('bOn').checked=pr.bOn;$('bFin').checked=!!pr.bFin;$('mat').value=pr.mat;
+  SEG=JSON.parse(JSON.stringify(pr.seg));SEL=0;markPre();}
+function markPre(){document.querySelectorAll('.pre[data-pre]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.pre===CUR_PRE)));}
+[document.querySelector('.presets'),$('samples')].forEach((box,bi)=>{Object.entries(PRESETS).forEach(([k,pr])=>{const b=document.createElement('button');b.type='button';b.className='pre';b.dataset.pre=k;b.textContent=pr.n;
+  b.onclick=()=>{if(MODE!=='gen')setMode('gen');loadPreset(k);if(bi===0)$('gShape').open=true;clearTimeout(tmr);afterEdit();};box.appendChild(b);});});
+markPre();
+function photo(inputId,show){const inp=$(inputId);inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;const url=URL.createObjectURL(f);show(url);};}
+photo('photo',url=>{$('photoImg').src=url;$('photoBox').hidden=false;});
+$('photoOff').onclick=()=>{$('photoBox').hidden=true;$('photoImg').removeAttribute('src');$('photo').value='';};
+photo('panelPhoto',url=>{$('panelImg').src=url;$('panelPic').hidden=false;});
+
+/* ---------------- 自己写程序 / 改程序 ---------------- */
+let MODE='gen',EDITED=false,OWN=null;const codeEl=$('code');
+const SAMPLE=['O0002','G99','G00 X100. Z100.','T0101','M03 S600','G00 X64. Z0.','G01 X-1. F0.2','G00 Z2.','X62.','G71 U1.5 R0.5','G71 P10 Q20 U0.4 W0.1 F0.25','N10 G00 X26.','G01 Z0. F0.12','X30. Z-2.','Z-20.','X40. Z-30.','Z-45.','G03 X50. Z-50. R5.','N20 G01 X62.','G70 P10 Q20','G00 X100. Z100.','M05','M30'].join('\n');
+function codeLines(){const a=codeEl.value.replace(/\r\n?/g,'\n').split('\n');while(a.length&&!a[a.length-1].trim())a.pop();return a;}
+function setTag(){const t=$('edTag');t.className='edtag'+(MODE==='own'?' own':(EDITED?' mod':''));
+  t.textContent=MODE==='own'?'自己的程序':(EDITED?'已手动改过，改尺寸不会覆盖':'按尺寸生成，可以直接改');
+  $('codeRegen').hidden=MODE!=='gen'||!EDITED;$('codeSample').hidden=MODE!=='own';$('codeSample2').hidden=MODE!=='own';$('codeClear').hidden=MODE!=='own';}
+function analyze(lines){const out=[],nod=[];let sawM3=false,noM3=false,cut=false;
+  const hasN=n=>lines.some(x=>parse(x).N===n);
+  lines.forEach((l,i)=>{const t=parse(l),G=t.G;
+    if(!(G.some(g=>g>=70&&g<=76)||G.includes(4)||G.includes(50))&&t.nodot.length)nod.push(i+1);
+    if(t.M.includes(3)||t.M.includes(4))sawM3=true;
+    if(!sawM3&&!cut&&(G.includes(1)||G.includes(2)||G.includes(3)||G.includes(71)||G.includes(90)||G.includes(94)))noM3=true;
+    if(G.includes(1)||G.includes(71)||G.includes(90))cut=true;
+    if((G.includes(71)||G.includes(72)||G.includes(73)||G.includes(70))&&isFinite(t.P)&&isFinite(t.Q)&&(!hasN(t.P)||!hasN(t.Q)))out.push(['err',`第 ${i+1} 行：找不到 N${hasN(t.P)?t.Q:t.P} 这一行`]);
+    if(G.includes(74))out.push(['',`第 ${i+1} 行：G74 这一版还不模拟，会跳过`]);
+    if(G.includes(20))out.push(['err',`第 ${i+1} 行：G20 是英制（寸），这里只按毫米模拟，跑出来不对。改成 G21 或删掉`]);
+    if(G.includes(41)||G.includes(42))out.push(['',`第 ${i+1} 行：G41/G42 刀尖圆弧补偿这一版不算，画面按刀尖点走，圆弧、锥度会差一点点`]);
+    const OKG=isHZ()?[0,1,2,3,4,21,28,32,36,40,50,70,71,72,73,75,76,80,81,82,90,92,94,95,96,97,98,99]:[0,1,2,3,4,21,28,32,40,50,70,71,72,73,75,76,90,92,94,96,97,98,99];
+    const bad=G.filter(g=>![20,41,42,74].includes(g)&&!OKG.includes(g));if(bad.length)out.push(['',`第 ${i+1} 行：${bad.map(g=>'G'+g).join('、')} 这一版不认识，没模拟，这一行的结果不算数`]);
+    if(t.M.includes(98)||t.M.includes(99))out.push(['',`第 ${i+1} 行：子程序这一版不模拟`]);});
+  if(nod.length)out.unshift(['',`有 ${nod.length} 行坐标没写小数点（第 ${nod.slice(0,8).join('、')}${nod.length>8?' 等':''} 行）。有的系统会当成千分之一毫米，这里按毫米模拟，确认你车床的设置`]);
+  if(noM3)out.unshift(['err','开始切削前没有 M03 主轴正转，模拟会报"主轴没转就进刀"']);
+  return out;}
+function showMsgs(list){const b=$('codeMsg');b.textContent='';list.forEach(([k,m])=>{const p=document.createElement('p');if(k)p.className=k;p.textContent=m;b.appendChild(p);});}
+function resetSim(){const single=sim?sim.single:false;sim=newSim();sim.single=single;if(G3)build3D();
+  $('alarm').hidden=true;$('result').hidden=true;$('kTake').disabled=true;$('fallback').hidden=true;$('kStart').disabled=!PROG;$('copyBtn').disabled=!$('ack').checked||!PROG;
+  renderProg();legend();setView(viewMode);updateStatus();}
+function autoTools(lines){const st={};let t=1,x=P.chgX,z=P.chgZ,mo=0;
+  lines.forEach(l=>{const p=parse(l);if(p.Tstr){const v=p.Tstr;t=v.length>=3?parseInt(v.slice(0,v.length-2),10):parseInt(v,10);}
+    for(const g of [0,1,2,3])if(p.G.includes(g))mo=g;
+    /* 镗孔的信号：G71/G72 精车留量 U 是负数；或者快移进到毛坯孔里面（孔里面才放得下镗刀） */
+    if((p.G.includes(71)||p.G.includes(72))&&isFinite(p.P)&&isFinite(p.U)&&p.U<0){(st[t]||(st[t]={zl:0,xl:0,inner:0,n:0})).inBore=1;}
+    if(p.G.some(g=>g>=70))return;
+    {const qx=isFinite(p.X)?p.X:(isFinite(p.U)?x+p.U:x),qz=isFinite(p.Z)?p.Z:(isFinite(p.W)?z+p.W:z);if(mo===0&&(isFinite(p.X)||isFinite(p.U))&&P.hole0>0&&qx>0.5&&qx<=P.hole0+0.01&&qz>0)(st[t]||(st[t]={zl:0,xl:0,inner:0,n:0})).inBore=1;}
+    const nx=isFinite(p.X)?p.X:(isFinite(p.U)?x+p.U:x),nz=isFinite(p.Z)?p.Z:(isFinite(p.W)?z+p.W:z);
+    if(mo>=1&&(nx!==x||nz!==z)){const o=st[t]||(st[t]={zl:0,xl:0,inner:0,n:0});o.zl+=Math.abs(nz-z);o.xl+=Math.abs(nx-x)/2;o.n++;if(Math.abs(nx-x)>0.01&&Math.min(z,nz)<-0.3)o.xIn=(o.xIn||0)+1;
+      if(P.hole0>0&&Math.max(x,nx)<=P.hole0+0.5&&nz<z)o.inner++;}
+    x=nx;z=nz;});
+  const map={},names=[];const nm={od:'外圆刀',grv:'切刀',bore:'镗刀'};
+  Object.keys(st).forEach(k=>{const o=st[k];let ty='od';if(o.inBore||(o.inner>0&&o.inner>=o.n/3))ty='bore';else if(o.xl>3*o.zl&&o.zl<8&&+k!==1&&o.xIn)ty='grv';   /* 只在端面上横着走的是车端面的刀（比如四方刀片的端面刀），不是切刀 */
+    map[k]=ty;names.push(`T${String(k).padStart(2,'0')} 当${nm[ty]}`);});
+  return {map,note:names.length?`刀按你程序的走法自动认的：${names.join('，')}。不对的话到"更多设置 → 吃刀、进给和刀"里改刀号`:''};}
+function applyCode(){
+  if(!P||BAD)return;
+  const lines=codeLines();
+  if(!lines.some(l=>l.trim())){PROG=null;showMsgs([]);$('stat').className='stat bad';$('stat').innerHTML='<b>程序是空的</b>：在上面写程序，或者导入程序文件';$('kStart').disabled=true;$('copyBtn').disabled=true;$('progList').textContent='';return;}
+  PROG={lines,info:(PROG&&PROG.info)||{}};const am=analyze(lines);
+  /* 自己写/导入的程序：按每把刀实际怎么走，自动认成外圆刀、切刀还是镗刀（不用先去设置里对刀号） */
+  if(MODE==='own'){const auto=autoTools(lines);Object.assign(P.tmap,auto.map);if(auto.note)am.push(['',auto.note]);}
+  showMsgs(am);
+  $('stat').className='stat ok';$('stat').innerHTML=MODE==='own'?`<b>已载入你的程序</b>，一共 ${lines.length} 行。按车床面板上的"循环启动"看怎么走`:`<b>用的是你改过的程序</b>，一共 ${lines.length} 行。想按尺寸重出，点"按尺寸重新生成"`;
+  resetSim();}
+let ctmr=0;
+/* 在"按尺寸出程序"里贴进来一整段别人的程序：自动切到"自己写/导入"，毛坯尽量从程序里猜 */
+function guessBlank(txt){const g={};const T=txt.toUpperCase();
+  let m=txt.match(/毛坯\s*[Φφ∅]?\s*(\d+(?:\.\d+)?)/);if(m)g.D=parseFloat(m[1]);
+  m=txt.match(/(?:预钻孔|钻孔|底孔|孔)\s*[Φφ∅]\s*(\d+(?:\.\d+)?)/);if(m)g.hole=parseFloat(m[1]);
+  let maxX=0,minZ=0,x=0,mo=0;T.split('\n').forEach(l=>{const p=parse(l);for(const k of [0,1,2,3])if(p.G.includes(k))mo=k;if(p.G.some(v=>v>=70))return;
+    if(isFinite(p.X))x=p.X;if(mo>=1&&isFinite(p.X))maxX=Math.max(maxX,p.X);if(isFinite(p.Z)&&p.Z<minZ&&p.Z>-2000)minZ=p.Z;});
+  m=txt.match(/切刀\s*宽\s*(\d+(?:\.\d+)?)/);if(m)g.gw=parseFloat(m[1]);
+  if(!g.D&&maxX>0)g.D=Math.ceil(maxX);g.stick=Math.ceil(-minZ+8);
+  {let x2=1e9,z2=1e9,m2=0,zr=1e9;T.split('\n').forEach(l=>{const p=parse(l);for(const k of [0,1,2,3])if(p.G.includes(k))m2=k;if(p.G.some(v=>v>=70))return;
+    if(isFinite(p.X))x2=p.X;if(isFinite(p.Z))z2=p.Z;if(m2===0&&g.D&&x2<g.D&&z2>=0&&z2<zr)zr=z2;});
+    g.Fs=zr<1e8?Math.max(0,Math.min(1,Math.round((zr-0.3)*10)/10)):0.5;}
+  return g;}
+/* 贴程序、导入文件都走这一个入口：切到"自己写/导入"，毛坯从程序里猜，并告诉用户猜的是多少 */
+function importText(txt,how){const g=guessBlank(txt);OWN=txt;if(MODE!=='own')setMode('own');codeEl.value=txt;OWN=txt;
+  if(g.D)$('oD0').value=g.D;if(g.gw)$('gw').value=g.gw;$('oHole').value=g.hole||0;if(g.stick>8)$('oStick').value=g.stick;$('oFs').value=g.Fs;
+  setTag();rebuild();$('stat').innerHTML=`<b>${how}，按"自己写/导入程序"来跑。</b>毛坯按程序猜的：外径 Φ${$('oD0').value}${+$('oHole').value>0?'，内孔 Φ'+$('oHole').value:''}，伸出 ${$('oStick').value}，端面余量 ${$('oFs').value}。不对就在上面"毛坯"里改`;
+  codeEl._len=codeEl.value.length;}
+codeEl.addEventListener('input',e=>{
+  if((e.inputType==='insertFromPaste'||codeEl.value.length-(codeEl._len||0)>40)&&/G0?[0-3]\b|G7\d/i.test(codeEl.value)){
+    importText(codeEl.value,'贴进来一整段程序');return;}
+  codeEl._len=codeEl.value.length;
+  if(MODE==='gen'&&!EDITED){EDITED=true;setTag();}clearTimeout(ctmr);ctmr=setTimeout(applyCode,600);});
+function fillOwnFromP(){if(!P)return;$('oD0').value=n2(P.D0);$('oHole').value=n2(P.hole0||0);$('oStick').value=n2(P.stick);$('oFs').value=n2(P.Fs);}
+function setMode(m){if(m===MODE)return;
+  if(MODE==='own')OWN=codeEl.value;else if(OWN===null)fillOwnFromP();
+  if(m==='own'&&$('tAuto').checked){$('tR').value='0101';$('tGL').value='0202';$('tGR').value='0203';$('tB').value='0304';}
+  MODE=m;$('mGen').setAttribute('aria-pressed',String(m==='gen'));$('mOwn').setAttribute('aria-pressed',String(m==='own'));
+  $('genBox').hidden=m!=='gen';$('ownBox').hidden=m!=='own';$('rpmInfo').hidden=m!=='gen';
+  if(m==='own'){if(OWN!==null)codeEl.value=OWN;}else EDITED=false;
+  setTag();rebuild();}
+$('mGen').onclick=()=>setMode('gen');$('mOwn').onclick=()=>setMode('own');
+$('codeRegen').onclick=()=>{if(EDITED&&!confirm('按上面填的尺寸重新出程序，你改过或贴进来的程序会被换掉。\n要跑别人的程序，请点上面的"自己写 / 导入程序"。\n\n确定重新生成吗？'))return;EDITED=false;setTag();rebuild();};
+$('codeClear').onclick=()=>{codeEl.value='';applyCode();codeEl.focus();};
+const SAMPLE2="O0001\nG99 G97 G40\nT0101\nM3 S1500\nG0 X16 Z0\nG1 X0 F0.1          (车端面)\nG0 X16 Z1\n\n(粗车 圆柱分层)\nG0 X13 Z1\nG1 Z-55.8 F0.15\nG0 X14\nZ1\nG0 X12\nG1 Z-55.8\nG0 X13\nZ1\nG0 X11.7\nG1 Z-55.8\nG0 X13\nZ1\nG0 X10.6\nG1 Z-24.8\nG0 X13\nZ1\nG0 X9.6\nG1 Z-23.9\nG0 X13\nZ1\nG0 X8.9\nG1 Z-22.4\nG0 X13\nZ1\nG0 X8.2\nG1 Z-16.5\nG0 X13\nZ1\n\n(粗车 R40弧头阶梯)\nG0 X7.6\nG1 Z-12.7\nG0 X10\nZ1\nG0 X6.4\nG1 Z-8.4\nG0 X10\nZ1\nG0 X5.2\nG1 Z-5.8\nG0 X10\nZ1\nG0 X4.0\nG1 Z-3.8\nG0 X10\nZ1\nG0 X2.8\nG1 Z-2.1\nG0 X10\nZ1\nG0 X1.6\nG1 Z-0.6\nG0 X10\nZ1\n\n(精车)\nG0 X0 Z1 S2000\nG1 Z0 F0.08\nG1 X0.92\nG3 X7.87 Z-16.61 R40\nG1 X8.57\nG1 Z-22.31\nG1 X10.07 Z-24.81\nG1 X11.35 Z-52.11\nG1 X9.35 Z-53.11\nG1 Z-53.61\nG1 X11.35\nG1 Z-55.31\nG1 X16\nG0 X100 Z100\nM5\nM30";
+$('codeSample2').onclick=()=>{codeEl.value=SAMPLE2;$('oD0').value='15';$('oHole').value='0';$('oStick').value='65';$('oFs').value='1';rebuild();};
+$('codeSample').onclick=()=>{codeEl.value=SAMPLE;$('oD0').value='60';$('oHole').value='0';$('oStick').value='70';$('oFs').value='2';rebuild();};
+$('codeFile').onchange=()=>{const f=$('codeFile').files&&$('codeFile').files[0];if(!f)return;
+  const put=txt=>{importText(txt.replace(/^﻿/,'').replace(/^%\s*$/gm,'').trim(),'导入了程序文件');$('codeFile').value='';};
+  const r=new FileReader();r.onload=()=>{const t=String(r.result||'');if(t.includes('\uFFFD')){const r2=new FileReader();r2.onload=()=>put(String(r2.result||''));try{r2.readAsText(f,'gbk');}catch(e){put(t);}}else put(t);};r.readAsText(f,'utf-8');};
+function readOwn(){
+  const p={};for(const id of IDS)p[id]=parseFloat($(id).value);
+  p.g99=$('enc1').checked;p.mat=$('mat').value;p.cool=false;p.sys=$('sys').value;p.bOn=false;p.mode='own';
+  p.D0=parseFloat($('oD0').value);p.hole0=parseFloat($('oHole').value)||0;p.stick=parseFloat($('oStick').value);p.Fs=parseFloat($('oFs').value)||0;
+  if(!(p.chgX>0))p.chgX=Math.ceil(((p.D0||100)+20)/10)*10;if(!(p.chgZ>0))p.chgZ=(p.D0||100)<150?50:100;
+  const e=[];if(!(p.D0>0))e.push('毛坯外径要填');else if(p.swB>0&&p.D0>p.swB)e.push(`毛坯 Φ${n2(p.D0)} 比床身上最大能车的 Φ${n2(p.swB)} 还大（"更多设置"里能改床身尺寸）`);
+  if(!(p.stick>0))e.push('伸出卡盘长度要填，而且要大于 0');else if(p.stick>3000)e.push('伸出卡盘长度太长了（这里最多 3000）');
+  if(!(p.hole0>=0)||p.hole0>=p.D0)e.push('毛坯内孔不对：不能是负数，也不能比外径大');
+  if(!(p.Fs>=0))e.push('端面余量不能是负数');else if(p.Fs>50)e.push('端面余量太大了（这里最多 50）');
+  for(const k of ['maxRpm','rapid','chgX','chgZ','gw'])if(!(p[k]>0)){e.push('"更多设置"里有空着的格子');break;}
+  p.sS=p.swS+2*(p.raise||0);p.sB=p.swB+2*(p.raise||0);p.tmap={};p.T={R:'0101'};
+  [['tR','od'],['tGL','grv'],['tGR','grv'],['tB','bore']].forEach(([id,ty])=>{const v=$(id).value.trim();if(/^\d{4}$/.test(v)){const tn=+v.slice(0,2);if(p.tmap[tn]&&p.tmap[tn]!==ty)e.push(`刀号对不上：${tn} 号刀位填了两种刀，到"更多设置 → 吃刀、进给和刀"里改一下刀号`);p.tmap[tn]=ty;}});
+  const gl=$('tGL').value.trim(),gr=$('tGR').value.trim();p.gL=/^\d{4}$/.test(gl)?+gl.slice(2):2;p.gR=/^\d{4}$/.test(gr)?+gr.slice(2):3;
+  const PR={errs:[],prims:[],grooves:[],blank:[{z1:0,z2:-p.stick,b:p.D0}],bMax:p.D0,zEnd:-p.stick,dMin:0,dMax:p.D0};
+  return {p,errors:e,PR};}
+function shapeTable(){const s=sim,rows=[];let i=s.N-1;while(i>=0&&!(s.r[i]>s.ri[i]+0.01))i--;
+  const zz=k=>s.z0+k*DZ,f2=v=>(Math.abs(v)<0.005?0:v).toFixed(2);
+  /* 先按内孔分段，再把外圆轮廓简化成一段段直线（误差 0.02） */
+  const runs=[];let j=i;while(j>=0){let k=j;while(k-1>=0&&Math.abs(s.ri[k-1]-s.ri[j])<0.012&&s.r[k-1]>s.ri[k-1]+0.01)k--;runs.push([j,k]);j=k-1;while(j>=0&&!(s.r[j]>s.ri[j]+0.01))j--;}
+  const dp=(a,b,out)=>{let m=-1,mi=-1;const za=zz(a),zb=zz(b),ra=s.r[a],rb=s.r[b];for(let k=b+1;k<a;k++){const t=(zz(k)-za)/(zb-za||1e-9),d=Math.abs(s.r[k]-(ra+(rb-ra)*t));if(d>m){m=d;mi=k;}}
+    if(m>0.03){dp(a,mi,out);dp(mi,b,out);}else out.push([a,b]);};
+  /* 一段一段往下认：能用一条直线描下来就是外圆/锥度/倒角，能用一个圆描下来就是圆弧（给出 R），竖着的台阶断开 */
+  const TOL=0.04,ZP=k=>zz(k),RP=k=>s.r[k];
+  const lineDev=(p,e)=>{const za=ZP(p),zb=ZP(e),ra=RP(p),rb=RP(e);let m=0;for(let k=e;k<=p;k++){const t=(ZP(k)-za)/(zb-za||1e-9),d=Math.abs(RP(k)-(ra+(rb-ra)*t));if(d>m)m=d;}return m;};
+  const circ=(p,e)=>{const m=Math.round((p+e)/2),x1=ZP(p),y1=RP(p),x2=ZP(m),y2=RP(m),x3=ZP(e),y3=RP(e),D=2*(x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2));if(Math.abs(D)<1e-9)return null;
+    const ux=((x1*x1+y1*y1)*(y2-y3)+(x2*x2+y2*y2)*(y3-y1)+(x3*x3+y3*y3)*(y1-y2))/D,uy=((x1*x1+y1*y1)*(x3-x2)+(x2*x2+y2*y2)*(x1-x3)+(x3*x3+y3*y3)*(x2-x1))/D,R=Math.hypot(x1-ux,y1-uy);
+    let dv=0;for(let k=e;k<=p;k++){const d=Math.abs(Math.hypot(ZP(k)-ux,RP(k)-uy)-R);if(d>dv)dv=d;}return {R,dv,uy};};
+  const fitRun=(a,b)=>{const out=[];let p=a;
+    while(p>b){let bestL=p,bestA=p,arcR=0,miss=0,cuy=0;
+      for(let e=p-1;e>=b;e--){if(Math.abs(RP(e)-RP(e+1))>0.8)break;   /* 竖台阶：断开 */
+        let ok=false;const slp=Math.abs((RP(e)-RP(p))/((ZP(p)-ZP(e))||1e-9));if(lineDev(p,e)<=TOL+0.5*DZ*Math.min(slp,4)){bestL=e;ok=true;}   /* 越陡，格子带来的毛刺越大，容差跟着放宽 */
+        if(p-e>=6){const c=circ(p,e);const ch=Math.hypot(ZP(p)-ZP(e),RP(p)-RP(e)),sag=c?c.R-Math.sqrt(Math.max(0,c.R*c.R-ch*ch/4)):0;if(c&&c.dv<=0.04&&c.R<500){ok=true;if(sag>=0.08){bestA=e;arcR=c.R;cuy=c.uy;}}}
+        if(ok)miss=0;else if(++miss>8)break;}
+      const useArc=bestA<bestL&&(bestL-bestA)>3&&(p-bestA)*DZ>0.3;const e=useArc?bestA:Math.min(bestL,p-1);
+      out.push({p,r:e,arc:useArc,R:arcR,cvx:cuy<RP(e)});p=e;
+      while(p>b&&Math.abs(RP(p)-RP(p-1))>0.8)p--;}
+    /* 相邻两段直线角度差不到 5°，合成一段（毛刺把一条锥度切碎了） */
+    const ang=it=>Math.atan2(RP(it.r)-RP(it.p),ZP(it.p)-ZP(it.r))*180/Math.PI,m=[];
+    out.forEach(it=>{const L=m[m.length-1];if(L&&!L.arc&&!it.arc&&L.r===it.p&&Math.abs(ang(L)-ang(it))<5)L.r=it.r;else m.push(it);});
+    return m;};
+  runs.forEach(([a,b])=>{const q=s.ri[a],hole=q>0.01?' · 内孔Φ'+f2(2*q):'';
+    if(a===b)return;
+    fitRun(a,b).forEach(it=>{const p=it.p,r=it.r,len=zz(p)-zz(r);if(len<0.12)return;const d1=2*s.r[p],d2=2*s.r[r],dd=d2-d1;
+      const pos=`Z${f2(zz(p))} ~ Z${f2(zz(r))}`;
+      if(it.arc&&len<0.6)it.arc=false;   /* 很短的小圆弧当过渡、倒角看 */
+      if(it.arc){rows.push([pos,f2(len),`Φ${f2(d1)} → Φ${f2(d2)}`,`圆弧 R${n2(Math.round(it.R*100)/100)}${it.cvx?'（凸）':'（凹）'}${hole}`]);return;}
+      /* 平不平按整段拟合的斜度看，不只看两头（两头可能沾到旁边的小圆角） */
+      let sz=0,sr=0,szz=0,szr=0,n=0;for(let k=r;k<=p;k++){const z=zz(k),v=s.r[k];sz+=z;sr+=v;szz+=z*z;szr+=z*v;n++;}const sl=(n*szr-sz*sr)/((n*szz-sz*sz)||1e-9),mr=sr/n;
+      if(Math.abs(sl*len*2)<0.05){const mid=Math.round((p+r)/2),th=s.tp[mid]>0&&s.tmaj[mid]>s.r[mid]+0.005;
+        rows.push([pos,f2(len),th?`大径Φ${f2(2*s.tmaj[mid])} 螺距${n2(s.tp[mid])} 小径Φ${f2(2*s.r[mid])}`:'Φ'+f2(2*s.r[mid]),(th?'螺纹':'外圆')+hole]);return;}
+      const ang=Math.abs(Math.atan2(dd/2,len)*180/Math.PI);
+      rows.push([pos,f2(len),`Φ${f2(d1)} → Φ${f2(d2)}`,(len<1.6&&Math.abs(dd)<3.5?'倒角':'锥度')+` ${n2(Math.round(ang*10)/10)}°`+hole]);});});
+  const box=$('checkBox');box.querySelector('h2').textContent='按你的程序车出来的尺寸（从端面往卡盘）';box.querySelector('thead tr').innerHTML='<th>位置</th><th>长度</th><th>外径</th><th>形状</th>';
+  const tb=$('checkBody');tb.textContent='';rows.slice(0,40).forEach(r=>{const tr=document.createElement('tr');r.forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.appendChild(td);});tb.appendChild(tr);});
+  box.hidden=false;}
+
+/* 刀号那几格：只显示这个零件用到的刀；自动排时不让改 */
+function toolRows(p){const own=MODE==='own',auto=$('tAuto').checked&&!own;
+  $('tAutoRow').hidden=own;
+  document.querySelectorAll('.tools [data-tk]').forEach(l=>{const k=l.dataset.tk;
+    const show=own?['R','GL','GR','B'].includes(k):(p&&p.used?p.used(k):true);
+    l.hidden=!show;l.querySelector('input').disabled=auto;});
+  $('tNote').textContent=own?'你程序里的刀号按这里对应：几号刀位是外圆刀、切槽刀还是镗刀。没写的刀位当外圆刀。'
+    :(auto?'自动排的，想改就去掉上面的勾。一个补号只能给一把刀用。'
+    :'一个补号只能给一把刀用。精车刀填得和粗车刀一样、精镗刀填得和粗镗刀一样，就不换刀，同一把刀再走一遍。');}
+function sums(){const rr=read(),p=rr.p;
+  $('sumM').textContent=`${$('sys').value} · ${p.g99?'有编码器':'没编码器'} · ${{ci:'铸铁',st:'钢件',al:'铝件'}[$('mat').value]} · 中拖板过 Φ${$('swS').value}`;
+  $('sumB').textContent=(parseFloat($('hole0').value)>0?`孔Φ${$('hole0').value} · `:'实心 · ')+`伸出 ${parseFloat($('stick').value)>0?$('stick').value:'自动 '+(p.stick||'')} · 端面车 ${$('Fs').value}`;
+  $('sumH').textContent=$('bOn').checked?`孔 Φ${$('bD').value} 深 ${$('bL').value}`+($('bFin').checked?' · 要精镗':''):'不车';
+  const nT=MODE==='gen'&&p.T&&!rr.errors.length?new Set(Object.values(p.T).map(v=>v.slice(0,2))).size:0;
+  $('sumF').textContent=`外圆每刀 ${$('apOD').value} · 端面 ${$('apF').value} · 精车留 ${$('allow').value} · 切刀 ${$('gw').value}`+(nT?` · 用 ${nT} 把刀`:'');
+  toolRows(p);
+  $('sumC').textContent=`装卸 ${$('load').value} 秒 · 每天 ${$('hours').value} 小时`;
+  $('plateName').textContent=`${$('sys').value} 数控车床`;}
+
+function rebuild(){rebuild0();try{renderTurret();}catch(e){}}
+/* ---------------- 刀架：几号位装什么刀 ---------------- */
+let LASTNEED={R:1};
+const TROLE={R:['粗车外圆刀','tR','外圆刀'],F:['精车外圆刀','tF','精车刀'],G:['切槽刀','tGL','切刀'],B:['粗镗刀','tB','镗刀'],BF:['精镗刀','tBF','精镗刀']};
+function rolesUsed(){if(MODE==='own')return ['R','G','B'];const n=LASTNEED||{R:1};return ['R','F','G','B','BF'].filter(k=>k==='R'||!!n[k]);}
+const stationOf=k=>parseInt(String($(TROLE[k][1]).value).slice(0,2),10)||0;
+function renderTurret(){const box=$('turret'),rows=$('trows');if(!box)return;const ks=rolesUsed();
+  const at={1:[],2:[],3:[],4:[]};ks.forEach(k=>{const n=stationOf(k);if(at[n]&&!at[n].includes(TROLE[k][2]))at[n].push(TROLE[k][2]);});
+  box.innerHTML='<div class="core">刀架</div>'+[1,2,3,4].map(n=>`<div class="st s${n}${at[n].length?' on':''}"><b>${n} 号位</b>${at[n].length?at[n].join(' / '):'空'}</div>`).join('');
+  rows.textContent='';
+  ks.forEach(k=>{const r=document.createElement('div');r.className='trow';const n=stationOf(k);
+    const tn=document.createElement('div');tn.className='tn';tn.textContent=TROLE[k][0];const sm=document.createElement('small');sm.textContent='T'+$(TROLE[k][1]).value+(k==='G'?' / T'+$('tGR').value:'');tn.appendChild(sm);
+    const pos=document.createElement('div');pos.className='pos';
+    [1,2,3,4].forEach(i=>{const b=document.createElement('button');b.type='button';b.textContent=i;b.setAttribute('aria-label',TROLE[k][0]+'装 '+i+' 号位');b.setAttribute('aria-pressed',String(i===n));b.onclick=()=>pickStation(k,i);pos.appendChild(b);});
+    r.append(tn,pos);rows.appendChild(r);});
+  $('tMode').textContent=$('tAuto').checked&&MODE==='gen'?'现在是自动排':'现在是你自己排的';
+  $('sumT').textContent=ks.map(k=>TROLE[k][2]+' '+stationOf(k)+' 号').join(' · ');}
+function pickStation(k,i){const ks=rolesUsed(),st={};ks.forEach(j=>st[j]=stationOf(j)||1);st[k]=i;
+  const pad=n=>String(n).padStart(2,'0'),order=['R','F','G','B','BF'];
+  const sorted=ks.slice().sort((a,b)=>st[a]-st[b]||order.indexOf(a)-order.indexOf(b));
+  const T={};let off=1;
+  sorted.forEach(j=>{const n=st[j];const same=sorted.find(q=>q!==j&&T[q]&&st[q]===n&&q!=='G'&&j!=='G');if(same){T[j]=T[same];return;}
+    const o=Math.max(n,off);T[j]=pad(n)+pad(o);off=o+1;if(j==='G'){T.GR=pad(n)+pad(o+1);off=o+2;}});
+  $('tAuto').checked=false;ks.forEach(j=>$(TROLE[j][1]).value=T[j]);if(T.GR)$('tGR').value=T.GR;
+  clearTimeout(tmr);rebuild();}
+$('tAutoBtn').onclick=()=>{$('tAuto').checked=true;if(MODE==='own'){$('tR').value='0101';$('tGL').value='0202';$('tGR').value='0203';$('tB').value='0304';}clearTimeout(tmr);rebuild();};
+function rebuild0(){
+  sums();markChips();
+  if(MODE==='own'){const r=readOwn();
+    if(r.errors.length){showMsgs(r.errors.map(e=>['err',e]));BAD=true;PROG=null;$('stat').className='stat bad';$('stat').innerHTML='<b>先把毛坯填好</b>';$('kStart').disabled=true;$('copyBtn').disabled=true;draw();return;}
+    P=r.p;PR=r.PR;BAD=false;applyCode();return;}
+  const r=read(),box=$('errors'),wb=$('warns');PR=r.PR;
+  if(r.errors.length){
+    box.innerHTML='<ul>'+r.errors.map(e=>'<li>'+e+'</li>').join('')+'</ul>';box.hidden=false;
+    (r.fixes||[]).forEach(([lab,id,val])=>{const b=document.createElement('button');b.type='button';b.className='fixbtn';b.textContent=lab;b.onclick=()=>{const el=$(id);if(el.type==='checkbox')el.checked=!!val;else el.value=val;rebuild();};box.appendChild(b);});
+    $('warns').hidden=true;
+    PROG=null;BAD=true;$('stat').className='stat bad';$('stat').innerHTML='<b>程序还没出来</b>：先按红字把上面改好，改对了自动出程序';
+    const ol=$('progList');ol.textContent='';const li=document.createElement('li');li.textContent='（程序还没出来，先改上面的红字）';ol.appendChild(li);
+    $('kStart').disabled=true;$('copyBtn').disabled=true;$('result').hidden=true;$('alarm').hidden=true;
+    $('v3').hidden=true;$('cv').hidden=false;$('hint3').hidden=true;draw();
+    renderBlocks();drawSketch();return;}
+  box.hidden=true;P=r.p;BAD=false;$('kStart').disabled=false;
+  wb.hidden=!r.warn.length;wb.innerHTML=r.warn.map(w=>'<p>'+w+'</p>').join('');
+  const GP=generate(P,PR),I=GP.info;
+  if(!EDITED){codeEl.value=GP.lines.join('\n');PROG=GP;showMsgs([]);}else{PROG={lines:codeLines(),info:I};showMsgs(analyze(PROG.lines));}
+  $('rpmInfo').innerHTML=`<b>加工顺序</b>：`+I.order.map(([t,d])=>`<b>T${t}</b> ${d}`).join(' → ')+'。'
+    +`<br>转速按经验表算，跟着直径变：端面 <b>S${(I.faceS||[I.face]).join(' → S')}</b>`+((I.faceS||[]).length>1?'（越往中心越快）':'')+(I.rough.length?`，粗车 <b>S${I.rough[0]}</b> → <b>S${I.rough[I.rough.length-1]}</b>`:'')+(I.last.length?`，车到尺寸那一刀 <b>S${I.last.join(' / S')}</b>`:'')
+    +(I.bore?`，镗孔 <b>S${I.bore[0]}</b> → <b>S${I.bore[I.bore.length-1]}</b>`:'')
+    +(I.fin?`，精车加三成 <b>S${I.fin.join(' / S')}</b>`:'')
+    +(I.boreFin?`，精镗加三成 <b>S${I.boreFin}</b>`:'')
+    +(I.grv?`，扎槽 <b>S${I.grv[0]}</b>，扩槽 <b>S${I.grv[1]}</b>（每边 ${I.grv[2]} 次扩完）`:'')+'。'
+    +(P.cool?' 钢件、铝件程序里开冷却水（M08），结束关掉（M09）。':' 铸铁干车，不开冷却水。')
+    +(P.mat!=='ci'?'<br><b>钢件/铝件：</b>开冷却水，转速比铸铁高（钢 1.5 倍、铝 2 倍），每转进给比铸铁小（外圆每转最多 0.3）。这组数还没拿真件校过，仅供参考。':'')
+    +(!P.g99?'<br><b>没编码器：</b>每分钟进给按转速自动算'+(P.mat==='ci'?'（端面、外圆每转约 0.63，扎槽 0.34，扩槽 0.4，按铸铁皮带轮实测）':'')+'，"吃刀、进给和刀"里填的数当上限。':'')
+    +(P.sys==='华中'?'<br>华中系统：程序头用 %，进给用 G95/G94。':'');
+  $('stat').className='stat ok';$('stat').innerHTML=EDITED?`<b>用的是你改过的程序</b>，一共 ${PROG.lines.length} 行。想按尺寸重出，点"按尺寸重新生成"`:`<b>程序出好了</b>，一共 ${PROG.lines.length} 行。到车床面板按"循环启动"看怎么车`;
+  renderBlocks();drawSketch();resetSim();}
+const FEEDK=['fFace','fR','fF','fStep','fIn','fPl','fEx'];
+const FDEF={g99:{fFace:0.6,fR:0.6,fF:0.12,fStep:0.5,fIn:0.3,fPl:0.33,fEx:0.4},g98:{fFace:250,fR:220,fF:220,fStep:240,fIn:150,fPl:40,fEx:80}};
+let feedMode=$('enc1').checked?'g99':'g98';const feedSave={};
+function swapFeeds(){const m=$('enc1').checked?'g99':'g98';if(m===feedMode)return;
+  feedSave[feedMode]={};FEEDK.forEach(k=>feedSave[feedMode][k]=$(k).value);
+  const src=feedSave[m]||FDEF[m];FEEDK.forEach(k=>$(k).value=src[k]);feedMode=m;
+  document.querySelectorAll('.fu').forEach(e=>e.textContent=m==='g99'?'毫米/转':'毫米/分');}
+$('enc1').addEventListener('change',swapFeeds);$('enc0').addEventListener('change',swapFeeds);
+let tmr=0;function schedule(){clearTimeout(tmr);tmr=setTimeout(rebuild,350);}
+$('form').addEventListener('input',e=>{const id=e.target.id||'';if(id.startsWith('blk_')||id==='code')return;schedule();});
+$('form').addEventListener('change',e=>{const id=e.target.id||'';if(e.target.type==='file'||id.startsWith('blk_')||id==='code')return;schedule();});
+new ResizeObserver(()=>{if(sim)draw();drawSketch();}).observe($('view'));
+new ResizeObserver(()=>drawSketch()).observe(sk);
+window.__redraw=()=>{setView(viewMode);drawSketch();};
+init3D();if(G3){$('v3d').hidden=false;viewMode='3d';}
+setTag();renderBlocks();renderEdit();rebuild();setView(viewMode);
+})();
+</script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const v=id=>parseFloat($(id).value);
+const n3=x=>isFinite(x)?(Math.round(x*1000)/1000).toString():'–';
+
+/* ---------- 栏目切换 ---------- */
+const tabs=[['tProg','tab-prog'],['tCalc','tab-calc'],['tFix','tab-fix']];
+function showTab(id){
+  tabs.forEach(([b,p])=>{const on=b===id;$(b).setAttribute('aria-selected',String(on));$(p).hidden=!on;});
+  if(id==='tProg'&&window.__redraw) setTimeout(window.__redraw,0);
+}
+tabs.forEach(([b])=>$(b).onclick=()=>showTab(b));
+
+/* ---------- 计算 ---------- */
+function calc(){
+  const D=v('cD'),S=v('cS'),V=v('cV');
+  $('oV').innerHTML=`线速度 <b>${n3(Math.PI*D*S/1000)}</b> 米/分`;
+  $('oS').innerHTML=`该开 <b>${isFinite(V/D)?Math.round(V*1000/(Math.PI*D)):'–'}</b> 转/分`;
+  $('oF').innerHTML=`G98 给 <b>F${isFinite(v('fF1')*v('fS1'))?Math.round(v('fF1')*v('fS1')):'–'}</b> 毫米/分`;
+  const d=v('kW0')-v('kW1');
+  $('oK').innerHTML=isFinite(d)?(Math.abs(d)<0.0005?'刀宽没变，不用补':`磨掉 <b>${n3(d)}</b>：T02 补 <b>${n3(-d/2)}</b>，T03 补 <b>+${n3(d/2)}</b>（各一半，单位毫米）<br>或者直接把 T0203 的 Z 改成新刀宽 ${n3(v('kW1'))}`):'';
+  const q=v('qW0')-v('qW1');
+  $('oQ').innerHTML=isFinite(q)?(Math.abs(q)<0.0005?'槽宽正好':(q>0?`窄了 <b>${n3(q)}</b>：T02 往负补 <b>${n3(-q/2)}</b>，T03 往正补 <b>+${n3(q/2)}</b>`:`宽了 <b>${n3(-q)}</b>：T02 往正补 <b>+${n3(-q/2)}</b>，T03 往负补 <b>${n3(q/2)}</b>`)):'';
+  const tD=v('tD'),td=v('td'),tL=v('tL');
+  const half=Math.atan((tD-td)/2/tL)*180/Math.PI;
+  $('oT').innerHTML=isFinite(half)?`锥度 <b>1:${n3(tL/(tD-td))}</b>，半角 <b>${n3(half)}°</b>（小拖板转这个角度）<br>编程：G01 X${n3(tD)} Z-${n3(tL)}（从小头 X${n3(td)} 开始）`:'';
+  const hD=v('hD'),hP=v('hP');
+  const pz=v('pz'),pn=Math.round(v('pn'));
+  $('oP').innerHTML=isFinite(pz)?(Math.abs(pz)<0.0005?'Z 没跑，不用补':`差了 <b>${n3(Math.abs(pz))}</b>：${pn} 把刀的 Z 刀补都改同样一个数（${n3(Math.abs(pz))}），不用一把一把重新对<br>先改一把，碰端面看是不是显示 Z0，方向对了再改剩下的<br>系统有工件坐标系（G54）或"工件移"的，只改那一个地方，所有刀一起跟着变`):'';
+  $('oH').innerHTML=isFinite(hD*hP)?`牙深约 <b>${n3(0.65*hP)}</b>（单边），底径约 <b>${n3(hD-1.3*hP)}</b>`:'';
+}
+$('tab-calc').addEventListener('input',calc); calc();
+/* ---------- 圆弧切点 ---------- 内部按 (Z, 半径) 算，输出 X 是直径；G02/G03 用模拟里同一套圆弧规则判断，跑出来方向一致 */
+function arcDir(z1,x1,z2,x2,R,cz,cr){for(const ccw of [true,false]){const a=window.__arcGeo(x1,z1,x2,z2,ccw,R);if(Math.hypot(a.cz-cz,a.cr-cr)<1e-3)return ccw?'G03':'G02';}return 'G02/G03';}
+const f3=x=>{let r=Math.round(x*1000)/1000;if(Math.abs(r)<0.0005)r=0;let t=String(r);if(!t.includes('.'))t+='.';return t;};
+function arcCalc(){
+  const A=[v('aAz'),v('aAx')/2],B=[v('aBz'),v('aBx')/2],C=[v('aCz'),v('aCx')/2],R=v('aR');
+  if([...A,...B,...C,R].every(isFinite)&&R>0){
+    const u=(p)=>{const dz=p[0]-B[0],dr=p[1]-B[1],L=Math.hypot(dz,dr);return [dz/L,dr/L,L];};
+    const [z1,r1,L1]=u(A),[z2,r2,L2]=u(C);const cos=z1*z2+r1*r2,th=Math.acos(Math.max(-1,Math.min(1,cos)));
+    if(!(L1>0&&L2>0))$('oA').innerHTML='三个点不能重合';
+    else if(th<1e-3||th>Math.PI-1e-3)$('oA').innerHTML='这三个点在一条直线上，没有拐角，不用倒 R';
+    else{const t=R/Math.tan(th/2);
+      if(t>L1+1e-6||t>L2+1e-6)$('oA').innerHTML=`R 太大了：要从拐点往两边各让出 <b>${n3(t)}</b>，可前一段只有 ${n3(L1)}、后一段只有 ${n3(L2)}`;
+      else{const T1=[B[0]+z1*t,B[1]+r1*t],T2=[B[0]+z2*t,B[1]+r2*t],bz=z1+z2,br=r1+r2,bl=Math.hypot(bz,br),h=R/Math.sin(th/2),Cn=[B[0]+bz/bl*h,B[1]+br/bl*h];
+        const g=arcDir(T1[0],T1[1]*2,T2[0],T2[1]*2,R,Cn[0],Cn[1]);
+        $('oA').innerHTML=`切点1 <b>X${f3(T1[1]*2)} Z${f3(T1[0])}</b><br>切点2 <b>X${f3(T2[1]*2)} Z${f3(T2[0])}</b><br>圆心 X${f3(Cn[1]*2)} Z${f3(Cn[0])}（拐点往两边各让 ${n3(t)}）<br>程序：<br><code>G01 X${f3(T1[1]*2)} Z${f3(T1[0])}<br>${g} X${f3(T2[1]*2)} Z${f3(T2[0])} R${f3(R)}<br>G01 X${f3(C[1]*2)} Z${f3(C[0])}</code>`;}}}
+  else $('oA').innerHTML='';
+  const O=[v('bCz'),v('bCx')/2],R2=v('bR'),Pp=[v('bPz'),v('bPx')/2];
+  if([...O,R2,...Pp].every(isFinite)&&R2>0){const dz=Pp[0]-O[0],dr=Pp[1]-O[1],d=Math.hypot(dz,dr);
+    if(d<=R2+1e-6)$('oB').innerHTML=`直线那头的点在圆弧里面（离圆心 ${n3(d)}，R 是 ${n3(R2)}），切不上，检查一下数`;
+    else{const ph=Math.atan2(dr,dz),al=Math.acos(R2/d);let best=null;
+      for(const s of [1,-1]){const a=ph+s*al,T=[O[0]+R2*Math.cos(a),O[1]+R2*Math.sin(a)];if(!best||T[1]>best[1])best=T;}
+      const T=best,top=[O[0]+R2,O[1]],line=Math.hypot(Pp[0]-T[0],Pp[1]-T[1]),half=Math.abs(Math.atan2(Pp[1]-T[1],Math.abs(Pp[0]-T[0]))*180/Math.PI);
+      let prog='';if(Math.abs(O[1])<1e-6){const g=arcDir(top[0],0,T[0],T[1]*2,R2,O[0],O[1]);prog=`<br>程序（从球头顶上开始）：<br><code>G01 X0. Z${f3(top[0])}<br>${g} X${f3(T[1]*2)} Z${f3(T[0])} R${f3(R2)}<br>G01 X${f3(Pp[1]*2)} Z${f3(Pp[0])}</code>`;}
+      $('oB').innerHTML=`切点 <b>X${f3(T[1]*2)} Z${f3(T[0])}</b><br>直线长 ${n3(line)}，锥面半角 ${n3(half)}°${prog}`;}}
+  else $('oB').innerHTML='';
+}
+$('tab-calc').addEventListener('input',arcCalc); arcCalc();
+/* ---------- 计算页：上面一排按钮，点哪个只显示哪个；Z 格子带正负号按钮（手机数字键盘没有减号） ---------- */
+(function(){const box=document.querySelector('#tab-calc .calcs');if(!box)return;const cards=[...box.querySelectorAll(':scope>.card')];
+  const NM={'转速和线速度':'转速线速度','每转进给换成每分钟进给':'每转换每分','切刀磨了以后怎么补':'切刀磨了补','槽车出来宽了窄了':'槽宽不对','锥度':'锥度','普通外螺纹（公制）':'外螺纹','断电后所有刀 Z 一起补':'断电补 Z','拐角加 R：求两个切点':'拐角 R 切点','圆弧接直线：求切点':'圆弧接直线'};
+  const nav=document.createElement('div');nav.className='cnav';box.before(nav);let cur=0;try{cur=+(localStorage.getItem('calcPick')||0)||0;}catch(e){}if(!(cur>=0&&cur<cards.length))cur=0;
+  const show=i=>{cur=i;cards.forEach((c,k)=>c.hidden=k!==i);[...nav.children].forEach((b,k)=>b.setAttribute('aria-pressed',String(k===i)));try{localStorage.setItem('calcPick',String(i));}catch(e){}};
+  cards.forEach((c,i)=>{const t=c.querySelector('h3').textContent.trim(),b=document.createElement('button');b.type='button';b.textContent=NM[t]||t;b.onclick=()=>show(i);nav.appendChild(b);});show(cur);
+  ['aAz','aBz','aCz','bCz','bPz','pz'].forEach(id=>{const inp=$(id);if(!inp)return;const w=document.createElement('span');w.className='nin';inp.replaceWith(w);w.appendChild(inp);
+    const b=document.createElement('button');b.type='button';b.textContent='±';b.setAttribute('aria-label','正负号');w.appendChild(b);
+    b.onclick=()=>{const x=parseFloat(inp.value);if(!isFinite(x)||x===0){inp.value='';inp.placeholder='先填数再按±';inp.focus();return;}inp.value=String(-x);inp.dispatchEvent(new Event('input',{bubbles:true}));};});
+})();
+
+
+
+/* ---------- 机修资料 ---------- */
+const CATS=['全部','广数报警·程序','广数报警·运行','广数报警·系统','广数报警·机床','凯恩帝','伺服驱动器','变频器','电动刀架','主轴和螺纹','尺寸和回零','步进和普车改','常用参数','保养和备份','新手易错','操作步骤','国产系统牌子','资料去哪找'];
+const FX={
+ prog:['复位，按提示改正这一行程序，再从安全位置重新运行'],
+ sys:['按提示操作，不行就断电重启','涉及参数、梯形图的，动之前先备份（经验）'],
+ plc:['查对应的开关、到位信号和接线（经验）','开关是不是被铁屑、油污盖住了（经验）'],
+};
+const DATA=[];
+function G(cat,list,fix){list.forEach(r=>DATA.push({cat,code:r[0],title:r[1],fix:r[2]||fix,tag:r[3]||''}));}
+G('广数报警·程序',[
+ ['001','没有零件程序或打不开',['确认程序号对不对，程序有没有存进去']],
+ ['002','G 代码的数是负数或带了小数点',['比如把 G1. 改成 G01'],'输错'],
+ ['003','一个字的字符少于 2 个或多于 11 个',null,'输错'],
+ ['004','地址错误（只能是 A～Z）',['看那一行有没有输错字母或符号'],'输错'],
+ ['005','指令值不合法',null,'输错'],
+ ['006','程序段号是负数或带小数',null,'输错'],
+ ['007','不认识的 G 代码',['换成这台系统支持的写法，或查说明书'],'输错'],
+ ['008','主轴模拟电压控制没开时用了 G96（恒线速）',['改用 G97 固定转速，或请厂家开模拟主轴'],'恒线速'],
+ ['009','没写 00、01 组 G 代码就给了移动量',['在这一行前面加上 G00 或 G01']],
+ ['010','同一行里地址重复，比如两个 X',null,'输错'],
+ ['011','一行里超过 20 个字',['拆成两行']],
+ ['012','指令值超出范围',null],
+ ['013','主轴模拟控制没开时，S 只能用 S00～S99（挡位）',null,'主轴 挡位'],
+ ['014','00 组和 01 组 G 代码写在同一行',['拆成两行']],
+ ['015','主轴模拟控制没开时执行了自动换挡 M 代码',null,'挡位'],
+ ['016','刀补号超范围（0～32）',null,'刀补'],
+ ['017','刀号超过参数 No.084 设的范围',['查刀号写错没有，或改参数 084'],'刀号 刀架'],
+ ['018','插补数据画不出正确的线，或缺指令，或超 No.154 范围',null,'圆弧'],
+ ['020','刀尖半径补偿状态下不能换刀，先取消补偿（G40）',null,'刀补 G41 G42'],
+ ['030','G33 车螺纹时 X 移动量不是 0',null,'螺纹'],
+ ['031','G71～G73 精车轮廓里的圆弧让坐标不是一直往一个方向变',['G71 要求轮廓 X 一直增大或一直减小，有凹进去的用 G73'],'G71 G73 复合循环'],
+ ['032','G90、G92 里 R 的绝对值比 U/2 大',null,'锥度 螺纹'],
+ ['033','G94 里 R 的绝对值比 W 大',null,'端面'],
+ ['034','G70～G73 里程序段超过 100 段',null,'复合循环'],
+ ['035','G70～G73 里 Ns、Nf 写反了',null,'复合循环'],
+ ['036','G70～G73 没有 Ns 或 Nf，或超范围',null,'复合循环'],
+ ['037','G70～G73 里找不到 Ns 或 Nf 那一段',['查段号写对没有'],'复合循环'],
+ ['038','G71/G72 单次进刀量超范围',null,'G71 G72'],
+ ['039','G71/G72 单次退刀量超范围',null,'G71 G72'],
+ ['040','G73 总切削量超范围',null,'G73'],
+ ['041','G73 循环次数小于 1 或大于 99999',null,'G73'],
+ ['042','G74/G75 退刀量 R(e) 超范围',null,'G74 G75 切槽 钻孔'],
+ ['043','G74/G75 切到底的退刀量是负数',null,'G74 G75'],
+ ['044','G74/G75 X、Z 每次切削量超范围',null,'G74 G75'],
+ ['045','G76 锥螺纹起点在螺纹起点和终点之间',null,'G76 螺纹'],
+ ['046','G76 最小切深超范围',null,'G76 螺纹'],
+ ['047','G76 精车余量超范围',null,'G76 螺纹'],
+ ['048','G76 牙高比精车余量小或者是 0',null,'G76 螺纹'],
+ ['049','G76 循环次数超范围',null,'G76 螺纹'],
+ ['050','G76 倒角量超范围',null,'G76 螺纹'],
+ ['051','G76 刀尖角度超范围',null,'G76 螺纹'],
+ ['052','G76 X、Z 移动量是 0',null,'G76 螺纹'],
+ ['053','G76 没给牙高 P',null,'G76 螺纹'],
+ ['054','G76 第一刀切深 Q 没给或是 0',null,'G76 螺纹'],
+ ['055','G70～G73 里面不能调子程序',null,'复合循环'],
+ ['056','G70～G73 的第一段（Ns）必须是 G00 或 G01',null,'复合循环'],
+ ['057','G71 第一段没写 X 或 X 没移动',null,'G71'],
+ ['058','G72 第一段没写 Z 或 Z 没移动',null,'G72'],
+ ['059','G74 没写 Z',null,'G74 钻孔'],
+ ['060','G74 的 Q 是 0 或没写',null,'G74'],
+ ['061','G75 没写 X',null,'G75 切槽'],
+ ['062','G75 的 P 是 0 或没写',null,'G75 切槽'],
+ ['063','G70～G73 开始那段用了不允许的 G 代码',null,'复合循环'],
+ ['064','G70～G73 结束那段用了不允许的 G 代码',null,'复合循环'],
+ ['065','MDI 方式下不能执行 G70～G73',null,'MDI'],
+ ['066','循环起点落在精车轮廓围起来的范围里',['把循环起点放到毛坯外面'],'复合循环 起点'],
+ ['067','螺纹头数多于 10',null,'螺纹 多头'],
+ ['095','M98 调子程序时程序号没写或不对',null,'子程序'],
+ ['096','子程序套了超过 4 层',null,'子程序'],
+ ['097','M98 调的就是当前主程序自己',null,'子程序'],
+ ['098','MDI 方式下用了 M98 或 M99',null,'子程序 MDI'],
+ ['099','刀尖半径补偿中用了 M98 或 M99',null,'子程序 刀补'],
+ ['100～153','宏程序报警：格式错、变量号错、括号不配对、除数是 0、#0 不能运算等',['查宏程序那一行的写法'],'宏程序 变量'],
+ ['120','螺纹头数超过 65535',null,'螺纹'],
+ ['121','主轴编码器线数不在 100～5000 之间',['查编码器线数参数'],'编码器 螺纹'],
+ ['232～239','刚性攻丝相关报警（M29 用法、主轴设置等）',null,'攻丝'],
+ ['251','编程错误导致刀尖半径补偿出错',null,'刀补 G41 G42'],
+ ['252','圆弧终点不在圆弧上',['查 R 或 I、K 和终点坐标对不对得上'],'圆弧 G02 G03'],
+ ['253','相邻两点坐标一样，补偿走不了',null,'刀补'],
+ ['254','圆弧圆心和起点重合',null,'圆弧'],
+ ['255','圆弧圆心和终点重合',null,'圆弧'],
+ ['256','圆弧半径比刀尖半径还小，补偿不了',null,'刀补 圆弧'],
+ ['257','两段圆弧偏移后没有交点',null,'刀补'],
+ ['258','建立刀尖半径补偿那一段用了圆弧',['G41/G42 要跟直线一起用'],'刀补 G41 G42'],
+ ['259','取消刀尖半径补偿那一段用了圆弧',['G40 要跟直线一起用'],'刀补 G40'],
+ ['260','刀尖半径补偿检查到会过切',['查轮廓有没有比刀尖还小的凹角'],'刀补 过切'],
+ ['261','直线和圆弧偏移后没有交点',null,'刀补'],
+ ['262','圆弧和直线偏移后没有交点',null,'刀补'],
+ ['263','刀补状态下连续不移动的段太多',null,'刀补'],
+ ['281～289','倒角报警：倒角长度或圆角半径太大、交点不在圆弧上、终点处不能倒角',null,'倒角'],
+],FX.prog);
+G('广数报警·系统',[
+ ['301','参数开关打开着',['改完参数记得把参数开关关上'],'参数'],
+ ['302','系统初始化失败',null],
+ ['303','打不开零件程序',null],
+ ['304','保存程序失败',null],
+ ['305','程序总行数超过 69993 行',null],
+ ['306','输入了不允许的指令',null],
+ ['307','存储空间不够',['删掉不用的旧程序（先备份到 U 盘）']],
+ ['308','程序号超范围',null],
+ ['309','当前权限不能改宏程序',null,'权限'],
+ ['310','打不开 PLC 程序（梯形图）',['找系统厂家或机床厂，别自己乱改梯形图'],'梯形图 PLC'],
+ ['311','梯形图编辑软件版本不一致',null,'梯形图'],
+ ['313','键盘或操作面板故障',['查面板排线有没有松（经验）'],'按键'],
+ ['314','存储器故障，检查或重新上电',null],
+ ['315','电子齿轮比设错了',['电子齿轮比关系到走一个数实际走多少，改错了尺寸全乱，按说明书核对'],'齿轮比 尺寸'],
+ ['320','CPU 电压不正常，查电源后重启',['查系统开关电源 24V/5V 稳不稳（经验）'],'电源'],
+ ['340','U 盘读写出错',['重新插好 U 盘；换个小容量、FAT32 格式的 U 盘试（经验）'],'U盘 备份'],
+ ['341','系统升级完成，重新上电生效',null],
+ ['354','改了系统参数，要重新上电',null,'参数'],
+ ['356','梯形图修改成功，要重新上电',null,'梯形图'],
+ ['440','系统急停回路故障，重启系统',null,'急停'],
+ ['450','数据出错',['重启系统，回机床零点','重新对刀，检查所有参数'],'参数 零点'],
+ ['提示','存储器满：程序数或总容量超了',['删掉不用的程序']],
+ ['提示','数据错误：输入的数超出范围',null],
+ ['提示','程序段超长：一行超过 255 个字符',null],
+ ['提示','串口没接上就通讯 / 通讯错误',['查通讯线、波特率（经验）'],'传程序 串口'],
+],FX.sys);
+G('广数报警·运行',[
+ ['000','急停报警，急停回路断开',['先把急停按钮转一下松开','看 X、Z 有没有压到硬限位开关，压上了手动退出来','查急停回路的线和端子有没有松、断（经验）'],'急停 不能动'],
+ ['401','没设程序零点',['按复位清报警','用 G50 重新设坐标，或重新对刀'],'零点 对刀'],
+ ['402','某挡主轴最高转速没设',['检查参数 037～040'],'主轴 挡位'],
+ ['403','运行速度太快',null],
+ ['404','主轴停了，进给被取消',['主轴为什么停了：看变频器、看皮带（经验）'],'主轴 G99'],
+ ['405','车螺纹时主轴转速太低',['把程序转速提一点','查主轴有没有真转到指令转速（经验）'],'螺纹'],
+ ['406','车螺纹时主轴转速太高',['按复位清报警','检查主轴，修改参数 106'],'螺纹'],
+ ['407','车螺纹时主轴转速波动太大',['查主轴皮带松紧（经验）','查编码器联轴器松没松、编码器线接触好不好（经验）'],'螺纹 乱牙 编码器'],
+ ['408','变螺距车螺纹时螺距小于 0',null,'螺纹'],
+ ['409','没建立参考点，不能回第 2、3、4 参考点',['先回一次机床零点']],
+ ['410','回零失败（回零方式 A）',['查减速开关、零点开关有没有松、脏（经验）','查回零相关参数（经验）'],'回零'],
+ ['411 / 412','X / Z 正向超软限位',['复位后用手轮往反方向退出来','查程序坐标和对刀有没有错（经验）','软限位在参数 045～048'],'限位 超程'],
+ ['416 / 417','X / Z 负向超软限位',['复位后用手轮往正方向退出来','查是不是坐标少了小数点（经验）'],'限位 超程'],
+ ['421 / 422','X / Z 驱动器没准备好（431 / 432 意思相近）',['看驱动器有没有亮报警灯、显示什么代码，到"伺服驱动器"里查（经验）','查驱动器电源、插头、使能线（经验）'],'驱动器 伺服 步进'],
+ ['426 / 427','X / Z 负向硬限位超程（压到限位开关了）',['按住超程解除（不同机床叫法不同），手轮往反方向退（经验）'],'限位 超程'],
+],['按报警提示处理（经验）']);
+G('广数报警·机床',[
+ ['1000','换刀时间太长',['刀架一直转停不下或找不到刀位，去"电动刀架"里查','换刀时间参数设得太短也会报（经验）'],'刀架'],
+ ['1001','换刀结束时刀架没到位',['刀架底下的铁屑清干净，再换几个刀位试','还报就打开发信盘护罩，把发信盘调正，用 2.5 内六角把两颗固定螺丝拧紧'],'刀架 刀位 发信盘'],
+ ['1002','换刀没完成',['同 1001：先清铁屑，再查发信盘是不是松了'],'刀架 发信盘'],
+ ['1003 / 1008','尾座功能没开，不能执行 M10、M11',null,'尾座'],
+ ['1004','主轴转着不能退尾座',['先停主轴'],'尾座'],
+ ['1005','断电时换刀执行出错',['上电后手动换一次刀确认刀位（经验）'],'刀架'],
+ ['1006','循环启动被禁止，按启动没反应',null,'启动 没反应'],
+ ['1007','主轴启动被禁止',null,'主轴不转'],
+ ['1009','主轴转着不能执行螺纹退尾',null,'螺纹'],
+ ['1011','没检测到尾座顶上，不能起主轴',null,'尾座 主轴不转'],
+ ['1012','换刀方式 A、B 最多 8 把刀',null,'刀架'],
+ ['1015','确认刀架刀位数（6、8、10、12）',['刀位数参数和实际刀架对不上（经验）'],'刀架'],
+ ['1016','防护门没关',['关好门；关了还报，查门开关'],'防护门 主轴不转'],
+ ['1017','卡盘压力低',['查液压站压力表、油位、压力开关（经验）'],'卡盘 液压'],
+ ['1019','主轴转着不能松卡盘',['先停主轴'],'卡盘'],
+ ['1020','主轴转着的时候卡盘夹紧到位信号没了',['马上停车！查卡盘、液压、到位开关（经验）'],'卡盘 危险'],
+ ['1021','夹紧到位信号不对，不能起主轴',null,'卡盘 主轴不转'],
+ ['1022','卡盘松着不能起主轴',['夹紧卡盘；夹紧了还报，查卡盘到位信号'],'卡盘 主轴不转'],
+ ['1024','卡盘功能没开，不能执行 M12、M13',null,'卡盘'],
+ ['1025','没检测到卡盘夹紧或松开到位信号',null,'卡盘'],
+ ['1027','刀盘没松开',null,'刀架 刀盘'],
+ ['1028','找不到要换的刀',null,'刀架'],
+ ['1029','没收到刀盘停止锁紧信号',null,'刀架 锁紧'],
+ ['1032','不认识的 M 代码',['查程序里 M 代码写错没有'],'M代码'],
+ ['1034','M03、M04 设置错误',null,'主轴'],
+ ['1036','主轴换挡时间太长',['挡位没挂进去（经验）'],'挡位'],
+ ['1040','主轴定向时间太长',null,'主轴'],
+ ['1041','主轴伺服或变频器异常',['看变频器面板上的故障代码，到"变频器"里查'],'变频器 主轴不转'],
+ ['1043','主轴转着或进给中不能夹紧主轴',null,'主轴'],
+ ['1044','主轴夹紧着，不能转也不能走',null,'主轴'],
+ ['2000','液压电机没启动',['先启动液压站'],'液压 卡盘'],
+ ['2001','安全门开着',null,'防护门'],
+],FX.plc);
+G('凯恩帝',[
+ ['准备未绪','开机报"准备未绪"',['伺服驱动器没给准备好信号（最常见）：看驱动器灯，绿灯常亮正常、红灯闪是故障，对照驱动器手册查代码；可以先把电机和负载脱开试','急停没复位或急停线断了；急停端子电压应该有 24V 左右','参数：网上资料说 #1132 应为 1，#2023 要和 PLC 程序一致，改完要保存','PLC 程序丢了（常见原因是电池没电），用厂家软件重装','（网上资料说参数密码是 KND，以说明书为准）'],'准备未绪 急停 驱动器'],
+ ['41','41 号报警（网上资料没有正式定义，多和伺服、编码器有关）',['先按急停，记下报警时转速、负载','手转电机轴看卡不卡，查编码器插头有没有松、氧化','调历史报警看同时报了什么，参数和备份对比'],'伺服 编码器'],
+],null);
+G('伺服驱动器',[
+ ['Err1','超速',['位置模式：电子齿轮比调小','模拟电压模式：输入电压调低'],'超速'],
+ ['Err2','过压（主回路电压超过约 420V）',['量 RST 输入电压（正常 200～240V）','加长加减速时间，减少频繁启停','负载太大、制动有问题'],'过压'],
+ ['Err3','欠压（主回路电压低于约 230V）',['量 RST 输入电压','驱动器电路坏了要换'],'欠压'],
+ ['Err4','位置超差：发出的脉冲和电机实际走的差太多，走位不准',['最常见是机械卡死：把电机和丝杠脱开单独试','编码器线、UVW 线有没有接错、接触不好','高速时加减速时间不够，适当加长','都正常还报，可能是驱动器板子坏了'],'位置超差 卡死 编码器'],
+ ['Err9','编码器故障',['核对电机代码参数（PA1）和实际电机对不对','换编码器线、电机或驱动器试'],'编码器'],
+ ['Err11','功率模块（IPM）故障',['查 UVW 相序是不是接反','换驱动器'],'模块'],
+ ['Err12','过电流',['查 UVW 接线','换驱动器'],'过流'],
+ ['Err13','过负载',['查 UVW 接线','负载卡死或太大'],'过载 卡死'],
+ ['Err14','制动故障',['量输入电压','电机高速急起急停太多，适当降速'],'制动'],
+ ['Err15','制动失控',['换驱动器'],'制动'],
+ ['Err24','电流采集故障',['换驱动器'],''],
+ ['Err30','编码器 Z 脉冲丢失',['换编码器线、电机或驱动器'],'编码器 回零'],
+ ['','系统发脉冲，电机不转',['查 CN1 信号线','驱动器、电机有没有坏'],'不转'],
+ ['','驱动器没显示',['查控制电源 r、t 接线','驱动器坏了'],'没显示'],
+],null);
+G('变频器',[
+ ['OC','过电流（各牌子写法不同，如 OC1、E.OC、Err02～04、ocA）',['先把电机线拆下空载试，分清是电机还是变频器的毛病','电机堵转、负载突然变大','加速时间太短、保护值设太低','变频器内部功率管、电流检测坏了'],'过流 主轴'],
+ ['OV / OU','过电压，一般在主轴减速、停车时报',['减速时间加长','查制动单元、制动电阻','电网电压波动'],'过压 停车'],
+ ['UV / LU','欠电压',['查进线有没有缺相、电压低','端子松、电缆老化','整流桥坏'],'欠压 缺相'],
+ ['OH','过热',['环境超过 40 度或柜子不通风','风扇坏、散热片积灰：清灰换风扇','长期满负荷'],'过热 风扇'],
+ ['OL','过载',['吃刀量、转速太狠','变频器比电机小','电机绕组老化'],'过载'],
+],null);
+G('变频器',[
+ ['Err02','汇川：加速过电流',['加速时间加长','查输出有没有接地、短路','按电机铭牌设参数并做参数辨识','电机还在转就启动了：用转速跟踪启动或停稳再启'],'汇川 过流'],
+ ['Err03','汇川：减速过电流',['减速时间加长','加装制动单元和制动电阻','查输出接地、短路'],'汇川 过流'],
+ ['Err04','汇川：恒速过电流',['查输出接地、短路','变频器选小了换大一号'],'汇川 过流'],
+ ['Err08','汇川：控制电源故障',['输入电压调到规定范围'],'汇川'],
+ ['Err09','汇川：欠压',['瞬时停电、电压不在范围','整流桥、缓冲电阻、驱动板坏了找售后'],'汇川 欠压'],
+ ['Err10','汇川：变频器过载',['减小负载，查电机、机械卡不卡','换大一号变频器'],'汇川 过载'],
+ ['Err11','汇川：电机过载',['电机保护参数 F9-01 设对','减小负载，查卡死'],'汇川 过载'],
+ ['Err12','汇川：输入缺相',['查三相进线','板子坏了找售后'],'汇川 缺相'],
+ ['Err13','汇川：输出缺相',['查电机有没有断线、三相绕组','查变频器到电机的线'],'汇川 缺相'],
+ ['Err14','汇川：模块过热',['降环境温度、清风道','换风扇'],'汇川 过热'],
+ ['Err15','汇川：外部设备故障',['外部故障信号进来了，查外围设备'],'汇川'],
+ ['Err16','汇川：通讯故障',['查通讯线和通讯参数'],'汇川 通讯'],
+ ['Err17','汇川：接触器故障',['换驱动板、电源板或接触器'],'汇川'],
+ ['Err18','汇川：电流检测故障',['换霍尔器件或驱动板'],'汇川'],
+ ['Err19','汇川：电机调谐故障',['按铭牌设电机参数，查电机线'],'汇川'],
+ ['Err20','汇川：编码器故障',['编码器类型、接线、PG 卡'],'汇川 编码器'],
+ ['Err21','汇川：EEPROM 读写故障',['换主控板'],'汇川'],
+ ['Err23','汇川：对地短路',['换电缆或电机，先摇绝缘'],'汇川 接地 短路'],
+ ['Err30','汇川：掉载（电流太小）',['负载是不是脱开了，比如皮带断了'],'汇川 皮带'],
+ ['Err40','汇川：逐波限流',['负载太大或堵转；变频器选小了'],'汇川 过流'],
+ ['Err42 / 43','汇川：速度偏差大 / 电机超速',['编码器参数、电机参数辨识'],'汇川'],
+ ['Err45','汇川：电机过温',['查温度传感器线，降载频、加散热'],'汇川 过热'],
+ ['Err46 / 48','汇川：制动单元过载 / 制动回路短路',['制动电阻阻值太小或短路，换电阻'],'汇川 制动'],
+ ['ocA','台达：加速中过电流',['加长加速时间','查电机线绝缘','转矩提升调小'],'台达 过流'],
+ ['ocd','台达：减速中过电流',['加长减速时间，惯量大的加制动电阻'],'台达 过流'],
+ ['ocn','台达：恒速中过电流',['查机械过载和电机选型'],'台达 过流'],
+ ['ovd / ov','台达：减速中过电压 / 直流母线过压',['加长减速时间，开失速防止，加制动电阻','查电源电压'],'台达 过压'],
+ ['Lu','台达：直流母线欠压',['查三相进线、保险、整流桥'],'台达 欠压'],
+ ['oH1','台达：散热片过热',['环境不超过 40 度，换坏风扇，清散热片'],'台达 过热'],
+ ['oL / oL1 / oL2','台达：变频器过载 / 电子热保护 / 电机过载',['减负载','电机额定电流参数按铭牌设'],'台达 过载'],
+ ['GFF','台达：接地故障',['拆电机线空载试，摇电机对地绝缘；还报多半变频器坏了'],'台达 接地'],
+ ['PHL','台达：输入缺相',['查进线保险和 R/S/T 接线'],'台达 缺相'],
+ ['EF','台达：外部故障',['查外部故障输入的设备和接线'],'台达'],
+],null);
+G('电动刀架',[
+ ['','刀架一直转，停不下来',['霍尔元件坏了收不到刀位信号：查霍尔元件，坏了换','发信盘错位或松了：调正拧紧','换刀参数设错','干扰：远离大功率设备，加屏蔽'],'刀架 不停转 霍尔'],
+ ['','刀架不换刀',['摸刀架电机有没有振动、量有没有电压','电机正常就是里面卡死了：拆开清洗再装','控制柜里刀架继电器跳了或烧了：重新上电或换继电器'],'刀架 不动'],
+ ['','撞刀以后刀架转不动',['蜗轮蜗杆脱开了：拆开机械部分，手动让蜗杆蜗轮完全咬合，再查间隙'],'刀架 撞刀'],
+ ['','刀架收不到换刀信号',['感应装置错位或被挡住：装正，清理感应孔'],'刀架 信号'],
+ ['','换刀后锁不紧，尺寸跑',['查刀架锁紧机构和控制箱'],'刀架 尺寸'],
+ ['','刀架反转锁紧时间不对（经验）',['反转时间太短锁不紧，太长电机发烫，按刀架说明调参数'],'刀架 锁紧 发烫'],
+],null);
+G('主轴和螺纹',[
+ ['','主轴不转',['先看屏幕报警：1007 主轴禁止、1016 门没关、1022 卡盘没夹、1041 变频器异常','看变频器面板故障代码','挡位车床看挡挂没挂上','没编码器的车床主轴不转刀照样走，别直接进刀（经验）'],'主轴不转'],
+ ['','车螺纹乱牙',['主轴编码器联轴器松、编码器线接触不良（经验）','主轴皮带打滑、转速不稳，可能报 407（经验）','每刀起刀点 Z 要一样，起刀点留够加速距离（经验）'],'螺纹 乱牙 编码器'],
+ ['','主轴转速和设定的不一样（经验）',['变频器最高频率和系统最高转速参数没对上','皮带打滑','挡位不对'],'转速 变频器'],
+ ['','主轴发热、异响（经验）',['轴承缺油或坏了','皮带太紧','长时间高速重切'],'主轴 发热 异响'],
+],null);
+G('尺寸和回零',[
+ ['','尺寸忽大忽小',['丝杠、丝母和床身连接松：紧固','换刀后刀架没锁紧','反向间隙大：打表测间隙，参数里补（经验）','刀片、刀杆没压紧（经验）'],'尺寸 不稳 间隙'],
+ ['','回零不准或回零报警',['减速挡块、零点开关松了或脏了（经验）','回零速度参数太快（经验）','开关线接触不良（经验）'],'回零 零点'],
+ ['','车出来有锥度（经验）',['床身导轨磨损或水平不对','尾座偏','刀杆伸太长让刀'],'锥度 尺寸'],
+ ['','表面有振纹（经验）',['刀杆伸太长、刀尖不在中心高','转速、进给不合适','主轴轴承间隙大','工件伸太长没顶尾座'],'振纹 光洁度'],
+],null);
+G('步进和普车改',[
+ ['','步进电机丢步：尺寸越车越偏，声音发闷或咔咔响（经验）',['快移和加速度设太快：调低','驱动器电流设小了','导轨、丝杠太紧，润滑不好','驱动器电源电压不够'],'步进 丢步 普车改'],
+ ['','普车改没编码器（经验）',['不能车螺纹，也不能用 G99 每转进给，只能用 G98','主轴不转刀照样走，开机先确认主轴转了再进刀'],'编码器 G98 G99 普车改'],
+ ['','程序里 S 不管用（经验）',['普车改多数保留了机械挡位，转速要手动挂挡','程序里写 S 也不会自动变速'],'挡位 主轴 普车改'],
+ ['','反向间隙大（经验）',['老车床丝杠螺母磨损多：打表测出间隙，在参数里补','补完还不准就得换丝杠螺母或改滚珠丝杠'],'间隙 丝杠 普车改'],
+ ['','手摇和程序走的距离对不上（经验）',['电子齿轮比或脉冲当量参数设错（广数 315 报警相关）','丝杠螺距和参数对不上'],'齿轮比 尺寸'],
+],null);
+G('常用参数',[
+ ['022','广数：X 最高快移速度（网上资料标准 4000 毫米/分）',['以说明书为准，改前先备份'],'参数 快移'],
+ ['023','广数：Z 快移速度（网上资料标准 6 米/分）',['以说明书为准'],'参数 快移'],
+ ['037～040','广数：主轴各挡最高转速',['没设会报 402'],'参数 挡位'],
+ ['045～048','广数：X、Z 软限位（最大、最小）',['超软限位报 411/412/416/417 时在这里看'],'参数 限位'],
+ ['051 / 052','广数：复合循环每次吃刀量（网上资料一般单边 2）/ 退刀量（一般 0.25）',['以说明书为准'],'参数 G71'],
+ ['084','广数：刀号范围',['刀号超了报 017'],'参数 刀架'],
+ ['106','广数：车螺纹相关的主轴转速限制',['报 406 时改这里'],'参数 螺纹'],
+],null);
+G('保养和备份',[
+ ['','参数和程序一定要备份（经验）',['新机床、修好以后都把参数、梯形图、程序拷到 U 盘或电脑','电池没电、主板坏了的时候，有备份半天就能恢复，没备份可能要请厂家'],'备份 参数 电池'],
+ ['','电柜风扇和滤网清灰（经验）',['变频器、驱动器过热报警，大部分是灰堵的','车间铁粉、油雾大，至少一个月清一次'],'过热 风扇 保养'],
+ ['','导轨润滑（经验）',['每天看油壶有没有油，油路堵了导轨会拉伤','导轨拉伤以后尺寸、光洁度都会变差'],'润滑 导轨'],
+ ['','接地和干扰（经验）',['系统乱报警、死机、刀架乱转，先查接地','动力线和信号线分开走'],'接地 干扰 死机'],
+ ['','撞机以后要查的（经验）',['刀架有没有松、转得顺不顺','丝杠联轴器有没有错位','回一次零看准不准','对刀重新确认'],'撞刀 撞机'],
+],null);
+G('新手易错',[
+ ['','漏写小数点（经验）',['有的系统 X10 当成 0.01 毫米，X10. 才是 10 毫米，养成都带小数点的习惯'],'小数点 撞刀'],
+ ['','对刀错、刀补号写错（经验）',['撞刀大部分是这个：程序对，刀补错','换刀以后一定要核对刀补号和刀号'],'对刀 刀补 撞刀'],
+ ['','先退 Z 再退 X 撞上台阶（经验）',['车外圆退刀先退 X 再退 Z；车内孔先退 Z 再退 X'],'退刀 撞刀'],
+ ['','第一件不空跑（经验）',['新程序先在远离卡盘的地方对刀空跑一遍','再装工件、调低倍率、单段走'],'空跑 首件'],
+ ['','换刀点离工件或尾座太近（经验）',['刀架转的时候刀尖会扫一圈，换刀点要留够距离'],'换刀点 尾座'],
+],null);
+G('操作步骤',[
+ ['','断电以后重新开机，按这个顺序来',['关机以后至少等 1 分钟再开（广数说明书要求）','开机先看屏幕有没有报警，按复位','屏幕上显示的刀号是断电前的，刀架实际停在哪不一定对上：先手动换一次刀，确认刀位（经验）','断电时正在切削的：刀可能还在工件里，用手轮慢慢退刀，外圆先退 X、内孔先退 Z，千万别直接回零（经验）','确认卡盘还夹着，工件没松（经验）','手动把各轴移到安全区（离开工件、卡盘），再回参考点；不回参考点直接干，容易撞车','没装回零开关的车床不能执行回零，要重新对刀或用 G50 重新设坐标（广数说明书）','开干前车一刀试切，量尺寸确认坐标和刀补没变（经验）'],'断电 停电 开机 回零'],
+ ['','收工和停电的好习惯',['每天收工把各轴移到安全位置，下次开机或突然停电都省事','重要程序、参数、刀补定期拷到 U 盘（经验）'],'收工 断电 备份'],
+ ['','回参考点（回零）',['广数说明书：回零开关一般装在 X、Z 正方向行程最远处；没装回零开关的不要执行回零','回零前先手动把轴往负方向移开一段，别贴着开关回（经验）','先回 X 再回 Z，防止刀架撞尾座（经验）','回零报警到"尺寸和回零"里查'],'回零 参考点'],
+ ['','反向间隙怎么测、怎么补',['千分表（或百分表）吸在床身上，表头顶住刀架，压表一点','先往一个方向走一段（比如 X 正向手轮走 1 毫米），把间隙消掉，表针调零','再同方向走一小段，然后反方向走回同样距离，表针没回到零的差值就是间隙','测三到五次，取平均；机床开一会儿、热起来再测更准','在参数里找对应轴的"反向间隙"项输入：广数补偿范围 0～2 毫米，具体参数号以说明书参数表为准；发那科是 1851','X 轴注意说明书写的是直径值还是半径值','补完车一个正反向都走过的台阶，量一下验证；还有台阶就一次微调一两丝','间隙很大（比如老车床丝杠磨损）补偿只能救急，根本办法是修丝杠螺母'],'间隙 补偿 丝杠 百分表 千分表'],
+ ['','螺距误差补偿',['补的是丝杠全长上各段走得准不准，不是反向间隙','广数说明书：X、Z 各有 255 个补偿点，每点最多补 ±0.255 毫米','要用激光干涉仪或标准量块分段测，一般请厂家或专业的人做（经验）','和反向间隙一起用时，注意别重复补'],'螺距 补偿 丝杠'],
+ ['','加工件数清零',['广数：按住"取消"（CANCEL）键不放，再按 N','程序走到 M30 件数自动加 1'],'清零 件数 计数'],
+ ['','切削时间清零',['广数：按住"取消"（CANCEL）键不放，再按 T'],'清零 时间'],
+ ['','相对坐标 U、W 清零',['常见做法：在位置页切到相对坐标，按 U（或 W）让它闪，再按取消键清零（经验，不同系统按法不同，以说明书为准）','相对坐标只是看着方便，清零不影响程序和对刀'],'清零 相对坐标 U W'],
+ ['','报警怎么清',['大部分报警改好原因后按复位就清','改参数（354）、改梯形图（356）这类，要断电重启才生效','急停（000）要先松开急停按钮再复位'],'清零 报警 复位'],
+ ['','试切法对刀（常用做法）',['先车一刀端面，Z 不动、X 退出来，到刀补页对应刀号输入 Z0（按说明书的"测量"输入方式）','再车一刀外圆，X 不动、Z 退出来，停主轴量直径，输入 X 加量出来的直径','每把刀都这么对一遍，对完 MDI 走一下确认','具体按键各系统不一样，以说明书为准（经验）'],'对刀 刀补 试切'],
+],null);
+G('操作步骤',[
+ ['','Z 向所有刀一起补，不用一把一把对',['断电、换卡爪、工件伸出变了以后，常见的是所有刀 Z 一起跑了同样多','拿一把对好的刀碰车好的端面，看 Z 显示差多少（"计算"栏里有这个计算）','所有刀的 Z 刀补都改同样多：广数刀补页可以用 W 增量输入，每把刀输同一个数（经验，方向以说明书为准）','系统有工件坐标系（G54～G59）或"工件移"的（发那科等），只改这一个地方，所有刀一起变（经验）','改完先拿一把刀碰端面确认显示 Z0，方向对了再改剩下的'],'补偿 刀补 Z向 所有刀 断电 对刀'],
+ ['','断电后，有的系统记得位置，有的不记得',['伺服电机带绝对值编码器的：断电不丢位置，开机可以直接用，一般不用回零（编码器电池没电了会丢）','增量编码器、步进电机（普车改大多是这种）：断电以后真实位置靠不住，开机要回零','普车改没有回零开关的：屏幕显示的是断电前的坐标，机械没动过一般还准，但一定先拿刀碰一下端面和外圆核对，差了就用上一条的办法一起补（经验）'],'断电 记忆 回零 编码器'],
+],null);
+G('国产系统牌子',[
+ ['广数 GSK','广州数控',['车床常见：980TDc、980TDi、928 等','研报把它和华中、光洋、凯恩帝列在国产第一档','官网 gsk.com.cn'],'广州数控 980'],
+ ['华中 HNC','华中数控（武汉）',['车床常见：世纪星 HNC-21T 等，高档有华中 8 型','国产第一档'],'华中 世纪星'],
+ ['KND','凯恩帝（北京）',['车床常见：K1TI、1000TI 等','国内保有量最大的品牌之一，国产第一档','官网 knd.com.cn'],'凯恩帝'],
+ ['光洋','大连光洋',['研报列在国产第一档'],'光洋'],
+ ['华兴','华兴数控',['研报列在"普适"档：功能基础，便宜，普车改常见（经验）'],'华兴 经济型'],
+ ['开通','开通数控',['研报列在"普适"档'],'开通 经济型'],
+ ['达丰','达丰数控',['研报列在"普适"档','你说的"达风"可能就是它，看一下系统面板上的牌子'],'达丰 达风 经济型'],
+ ['广泰','广泰数控',['研报列在"普适"档'],'广泰 经济型'],
+ ['台湾','新代 SYNTEC、宝元 LNC、亿图',['台湾牌子，国内机床上也很常见'],'新代 宝元'],
+ ['进口','发那科 FANUC、西门子、三菱',['原装数控车床上最多，资料也最全'],'发那科 西门子 三菱'],
+],null);
+DATA.push({cat:'资料去哪找',code:'',title:'说明书和手册去哪下',fix:['最准的是机床随机带的说明书，其次是厂家官网','广州数控（广数）：<a href="https://www.gsk.com.cn" target="_blank" rel="noopener">gsk.com.cn</a>','凯恩帝 KND：<a href="https://www.knd.com.cn" target="_blank" rel="noopener">knd.com.cn</a>','汇川变频器：<a href="https://www.inovance.com" target="_blank" rel="noopener">inovance.com</a>','台达变频器：<a href="https://www.deltaww.com" target="_blank" rel="noopener">deltaww.com</a>','打电话给机床厂或系统厂售后，报上系统型号要电子版，最省事（经验）'],tag:'说明书 手册 官网',html:true});
+
+let fcat='全部';
+const chips=$('fcats');
+CATS.forEach(c=>{const b=document.createElement('button');b.type='button';b.textContent=c;b.setAttribute('aria-pressed',String(c===fcat));b.onclick=()=>{fcat=c;[...chips.children].forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderFix();};chips.appendChild(b);});
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function renderFix(){
+  const q=$('fq').value.trim().toLowerCase();
+  const list=$('flist'); list.textContent='';
+  const hits=DATA.filter(d=>(fcat==='全部'||d.cat===fcat)&&(!q||(d.code+' '+d.title+' '+d.fix.join(' ')+' '+d.tag+' '+d.cat).toLowerCase().includes(q)));
+  hits.forEach(d=>{
+    const el=document.createElement('details');el.className='fitem';
+    const s=document.createElement('summary');
+    s.innerHTML=(d.code?`<span class="code">${esc(d.code)}</span>`:'')+`<span class="ft">${esc(d.title)}</span><span class="fc">${esc(d.cat)}</span>`;
+    const body=document.createElement('div');body.className='fbody';
+    const ul=document.createElement('ul');d.fix.forEach(f=>{const li=document.createElement('li');if(d.html)li.innerHTML=f;else li.textContent=f;ul.appendChild(li);});body.appendChild(ul);
+    el.append(s,body); if(q&&hits.length<=3) el.open=true; list.appendChild(el);
+  });
+  $('fempty').hidden=hits.length>0;
+  $('fcount').textContent=`共 ${hits.length} 条`+(fcat==='全部'&&!q?`（资料库一共 ${DATA.length} 条）`:'');
+}
+$('fq').addEventListener('input',renderFix); renderFix();
+})();
+</script>
+
+</body>
+</html>

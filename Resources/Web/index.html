@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}
 /* ===== 编程案例库 ===== */
 .case-body{padding:2px 12px 12px}
@@ -22,6 +22,11 @@
 .idx-t{font-size:15px;font-weight:600}
 .idx-s{font-size:12.5px;color:var(--ink-dim);line-height:1.45}
 .idx-go{font-size:22px;color:var(--ink-dim);flex:none}
+button{touch-action:manipulation}
+/* 像正经软件：杀回弹、点按闪烁、长按弹菜单、正文被选中 */
+html{overscroll-behavior:none}
+body{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+input,textarea,select,.case-code{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 .tool-bar{display:flex;align-items:center;gap:12px;margin:0 0 12px}
 .tool-bar>button{flex:none;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;color:var(--amber);padding:8px 12px;font-size:14px;cursor:pointer}
 .tool-bar-t{min-width:0}
@@ -5337,6 +5342,14 @@ bind('tbSym',function(){
   var cards=Array.prototype.slice.call(pane.querySelectorAll('.card'));
   if(cards.length<5)return;
 
+  /* 退役原 App 自带的老导航：它和这里的目录抢着管同一批卡片，
+     它用 hidden 属性藏卡片（CSS 里 [hidden] 带 !important），会把目录打开的卡片也压住。
+     关掉它，并清掉它在卡片上留下的 hidden，之后只由本目录管显示。 */
+  var oldNav=pane.querySelector('.cnav');
+  if(oldNav)oldNav.style.display='none';
+  cards.forEach(function(c){ c.hidden=false; });
+  var leadEl=pane.querySelector('.lead');
+
   /* 每个工具一句话：干什么的、什么时候用 */
   var SUB={
     '转速和线速度':'知道线速度算主轴转速，或者反过来算',
@@ -5488,8 +5501,10 @@ bind('tbSym',function(){
     fromAll=fa;
     idx.hidden=true;
     bar.hidden=false;
-    cards.forEach(function(c){ c.style.display='none'; });
+    if(leadEl)leadEl.style.display='none';
+    cards.forEach(function(c){ c.style.display='none'; c.hidden=false; });
     card.style.display='';
+    card.hidden=false;
     document.getElementById('toolName').textContent=dispTitle(t);
     document.getElementById('toolSub').textContent=SUB[t]||'';
     document.getElementById('toolBack').textContent=fa?'‹ 返回目录':'‹ 返回';
@@ -5498,6 +5513,7 @@ bind('tbSym',function(){
   function closeTool(){
     bar.hidden=true;
     idx.hidden=false;
+    if(leadEl)leadEl.style.display='';
     cards.forEach(function(c){ c.style.display='none'; });
     if(fromAll)showAll(); else showHome();
     try{ window.scrollTo(0,0); }catch(e){}

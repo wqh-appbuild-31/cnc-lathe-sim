@@ -21,6 +21,13 @@ struct WebView: UIViewRepresentable {
         webView.scrollView.backgroundColor = bg
         webView.isOpaque = false
         webView.scrollView.contentInsetAdjustmentBehavior = .never
+        // App feel: no rubber-band bounce, no scroll indicators, no page zoom, no link preview
+        webView.scrollView.bounces = false
+        webView.scrollView.showsVerticalScrollIndicator = false
+        webView.scrollView.showsHorizontalScrollIndicator = false
+        webView.scrollView.minimumZoomScale = 1.0
+        webView.scrollView.maximumZoomScale = 1.0
+        webView.allowsLinkPreview = false
 
         if let url = Bundle.main.url(forResource: "index", withExtension: "html") {
             // Allow the page to read its sibling files (three.min.js / OrbitControls.js)

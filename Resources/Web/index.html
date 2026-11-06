@@ -14,7 +14,7 @@
 .case-code{background:#0b141a;border:1px solid var(--line);border-radius:8px;padding:10px;font-family:var(--f-code);font-size:12.5px;line-height:1.55;overflow-x:auto;white-space:pre;color:#d8f3ff;margin:0}
 .case-rsn{font-size:12px;color:var(--ink-dim);align-self:center}
 
-/* ===== v2.2 简化：工具箱目录 + 上手提示 ===== */
+/* ===== 简化：工具箱目录 + 上手提示 ===== */
 .howto{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:13.5px;line-height:1.75;margin:0 0 12px}
 .idx-group h4{margin:16px 2px 8px;font-size:13px;color:var(--ink-dim);font-weight:600}
 .idx-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 8px;cursor:pointer;color:var(--ink);font:inherit}
@@ -645,7 +645,7 @@ td.ok{color:var(--ok)}td.bad{color:var(--bad);font-weight:700}
 </div>
 
 <section class="pane" id="tab-calc" hidden>
-  <p class="lead">车工工具箱。下面是目录，每行都写了这个工具是干什么的，点开就能用；用完点左上角返回。</p>
+  <p class="lead">车工工具箱。先看「常用」，都是天天要用的；其它的收在「全部工具」里，点开才展开，顶部也能直接搜。</p>
   <div class="calcs">
     <div class="card">
       <h3>转速和线速度</h3>
@@ -5326,9 +5326,10 @@ bind('tbSym',function(){
 })();
 </script>
 <script>
-/* ===== 工具箱目录：列表 → 详情（学 App Store 上架 App 的通行格局） =====
-   只搬动显示方式：把「计算」页里几十张卡片收成一个带分组、一句话说明的目录，
-   点一行才打开那一个工具（顶部有返回）。卡片本身和里面的计算逻辑一概不动。 */
+/* ===== 工具箱（v2.3）：首页只放常用，其余收进「全部工具」 =====
+   第一屏只剩 9 个天天用的 + 一个「全部工具」入口，不再一打开就是几十行。
+   点「全部工具」才展开完整分组目录；搜索时自动展开并过滤。
+   卡片本身和里面的计算逻辑一概不动，只改摆放。 */
 (function(){
   'use strict';
   var pane=document.getElementById('tab-calc');
@@ -5377,6 +5378,9 @@ bind('tbSym',function(){
     '网纹 / 8 字油槽（参数参考）':'车网纹、油槽的参数参考',
     '说明：数据口径与模拟器局限':'这个 App 的数哪来的、模拟器哪些地方不能当真'
   };
+  /* 首页常用（按 id）：转速进给、螺纹、底孔、公差、锥度、两个生成器、代码速查、程序库 */
+  var COMMON=['tbSpeed','tbThread','tbTap','tbTol','tbTaper','tbGenOd','tbGenThread','tbDict','tbLib'];
+
   function dispTitle(t){ return t.replace(/^程序生成 · /,''); }
   function titleOf(card){ var h=card.querySelector('h3'); return h?h.textContent.trim():''; }
   function groupOf(card){
@@ -5389,16 +5393,49 @@ bind('tbSym',function(){
   }
   var GORDER=['快速计算','计算工具','生成程序','速查表','存程序 · 说明'];
 
+  function makeRow(card,t,fromAll){
+    var row=document.createElement('button');
+    row.type='button';
+    row.className='idx-row';
+    var main=document.createElement('span'); main.className='idx-main';
+    var tt=document.createElement('span'); tt.className='idx-t'; tt.textContent=dispTitle(t);
+    var ss=document.createElement('span'); ss.className='idx-s'; ss.textContent=SUB[t]||'';
+    main.appendChild(tt); main.appendChild(ss);
+    var go=document.createElement('span'); go.className='idx-go'; go.textContent='›';
+    row.appendChild(main); row.appendChild(go);
+    row.addEventListener('click',function(){ openTool(card,t,fromAll); });
+    return row;
+  }
+
   var idx=document.createElement('div');
   idx.id='toolIdx';
   var search=document.createElement('div');
   search.className='search';
   search.innerHTML='<input type="search" id="toolQ" placeholder="搜工具，比如 螺纹、公差、底孔" aria-label="搜索工具">';
   idx.appendChild(search);
+
+  /* 常用区 */
+  var favSec=document.createElement('div');
+  favSec.className='idx-group';
+  favSec.id='toolFav';
+  var fh=document.createElement('h4'); fh.textContent='常用';
+  favSec.appendChild(fh);
+  idx.appendChild(favSec);
+
+  /* 全部工具入口 */
+  var allRow=document.createElement('button');
+  allRow.type='button';
+  allRow.className='idx-row';
+  allRow.id='toolAllRow';
+  allRow.innerHTML='<span class="idx-main"><span class="idx-t">全部工具</span><span class="idx-s">剩下的都在这里，一共 '+cards.length+' 个，按类分好了</span></span><span class="idx-go">›</span>';
+  idx.appendChild(allRow);
+
+  /* 完整分组（默认收起） */
   var groups={};
   GORDER.forEach(function(g){
     var sec=document.createElement('div');
     sec.className='idx-group';
+    sec.style.display='none';
     var h=document.createElement('h4'); h.textContent=g;
     sec.appendChild(h);
     idx.appendChild(sec);
@@ -5409,25 +5446,21 @@ bind('tbSym',function(){
   bar.id='toolBar';
   bar.className='tool-bar';
   bar.hidden=true;
-  bar.innerHTML='<button type="button" id="toolBack">‹ 返回目录</button><div class="tool-bar-t"><div id="toolName"></div><div id="toolSub"></div></div>';
+  bar.innerHTML='<button type="button" id="toolBack">‹ 返回</button><div class="tool-bar-t"><div id="toolName"></div><div id="toolSub"></div></div>';
 
-  var rows=[];
+  var rows=[], byId={};
   cards.forEach(function(card){
     var t=titleOf(card);
     if(!t)return;
-    var row=document.createElement('button');
-    row.type='button';
-    row.className='idx-row';
-    var main=document.createElement('span'); main.className='idx-main';
-    var tt=document.createElement('span'); tt.className='idx-t'; tt.textContent=dispTitle(t);
-    var ss=document.createElement('span'); ss.className='idx-s'; ss.textContent=SUB[t]||'';
-    main.appendChild(tt); main.appendChild(ss);
-    var go=document.createElement('span'); go.className='idx-go'; go.textContent='›';
-    row.appendChild(main); row.appendChild(go);
-    row.addEventListener('click',function(){ openTool(card,t); });
+    var row=makeRow(card,t,true);
     groups[groupOf(card)].appendChild(row);
     rows.push({el:row,text:t+' '+(SUB[t]||''),sec:groups[groupOf(card)]});
+    if(card.id)byId[card.id]={card:card,t:t};
     card.style.display='none';
+  });
+  COMMON.forEach(function(id){
+    var it=byId[id];
+    if(it)favSec.appendChild(makeRow(it.card,it.t,false));
   });
 
   var lead=pane.querySelector('.lead');
@@ -5435,25 +5468,46 @@ bind('tbSym',function(){
   else{ pane.appendChild(idx); }
   pane.insertBefore(bar,pane.firstChild);
 
-  function openTool(card,t){
+  var showingAll=false, fromAll=false;
+  function showHome(){
+    showingAll=false;
+    favSec.style.display='';
+    allRow.style.display='';
+    GORDER.forEach(function(g){ groups[g].style.display='none'; });
+    rows.forEach(function(r){ r.el.style.display=''; });
+  }
+  function showAll(){
+    showingAll=true;
+    favSec.style.display='none';
+    allRow.style.display='none';
+    GORDER.forEach(function(g){ groups[g].style.display=''; });
+  }
+  allRow.addEventListener('click',function(){ showAll(); try{window.scrollTo(0,0);}catch(e){} });
+
+  function openTool(card,t,fa){
+    fromAll=fa;
     idx.hidden=true;
     bar.hidden=false;
     cards.forEach(function(c){ c.style.display='none'; });
     card.style.display='';
     document.getElementById('toolName').textContent=dispTitle(t);
     document.getElementById('toolSub').textContent=SUB[t]||'';
+    document.getElementById('toolBack').textContent=fa?'‹ 返回目录':'‹ 返回';
     try{ window.scrollTo(0,0); }catch(e){}
   }
   function closeTool(){
     bar.hidden=true;
     idx.hidden=false;
     cards.forEach(function(c){ c.style.display='none'; });
+    if(fromAll)showAll(); else showHome();
     try{ window.scrollTo(0,0); }catch(e){}
   }
   document.getElementById('toolBack').addEventListener('click',closeTool);
   document.getElementById('toolQ').addEventListener('input',function(){
     var q=this.value.trim();
-    rows.forEach(function(r){ r.el.style.display=(!q||r.text.indexOf(q)>=0)?'':'none'; });
+    if(!q){ showHome(); return; }
+    showAll();
+    rows.forEach(function(r){ r.el.style.display=(r.text.indexOf(q)>=0)?'':'none'; });
     GORDER.forEach(function(g){
       var sec=groups[g];
       var any=Array.prototype.some.call(sec.querySelectorAll('.idx-row'),function(el){ return el.style.display!=='none'; });

@@ -13,6 +13,20 @@
 .case-pname{font-weight:600;font-size:13px;margin-bottom:4px;color:var(--amber)}
 .case-code{background:#0b141a;border:1px solid var(--line);border-radius:8px;padding:10px;font-family:var(--f-code);font-size:12.5px;line-height:1.55;overflow-x:auto;white-space:pre;color:#d8f3ff;margin:0}
 .case-rsn{font-size:12px;color:var(--ink-dim);align-self:center}
+
+/* ===== v2.2 简化：工具箱目录 + 上手提示 ===== */
+.howto{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:13.5px;line-height:1.75;margin:0 0 12px}
+.idx-group h4{margin:16px 2px 8px;font-size:13px;color:var(--ink-dim);font-weight:600}
+.idx-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 8px;cursor:pointer;color:var(--ink);font:inherit}
+.idx-main{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.idx-t{font-size:15px;font-weight:600}
+.idx-s{font-size:12.5px;color:var(--ink-dim);line-height:1.45}
+.idx-go{font-size:22px;color:var(--ink-dim);flex:none}
+.tool-bar{display:flex;align-items:center;gap:12px;margin:0 0 12px}
+.tool-bar>button{flex:none;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;color:var(--amber);padding:8px 12px;font-size:14px;cursor:pointer}
+.tool-bar-t{min-width:0}
+#toolName{font-size:16px;font-weight:700}
+#toolSub{font-size:12.5px;color:var(--ink-dim);margin-top:1px}
 </style>
 <style>
 /* ===== 车工工具箱（3.5pro 新增模块） ===== */
@@ -368,12 +382,13 @@ td.ok{color:var(--ok)}td.bad{color:var(--bad);font-weight:700}
 </header>
 <nav class="tabs" role="tablist" aria-label="栏目">
   <button type="button" role="tab" id="tProg" aria-selected="true">编程</button>
-  <button type="button" role="tab" id="tCalc" aria-selected="false">计算</button>
+  <button type="button" role="tab" id="tCalc" aria-selected="false">工具箱</button>
   <button type="button" role="tab" id="tFix" aria-selected="false">机修资料</button>
   <button type="button" role="tab" id="tCase" aria-selected="false">案例</button>
 </nav>
 
 <div class="wrap pane" id="tab-prog">
+  <p class="howto">新手三步：<b>①</b> 点下面「自己写 / 导入程序」，把程序贴进来（也可以去「案例」栏目找现成的，一键送进来）　<b>②</b> 毛坯尺寸不对，就在「毛坯」里改　<b>③</b> 按操作面板上绿色的「循环启动」，看它车出来</p>
   <section class="machine" aria-label="数控车床">
    <div class="mhead"><h2>车床</h2><span class="beta">测试版 · 程序仅供参考</span></div>
    <div class="samples" id="samples" role="group" aria-label="样品"><span>选个样品直接看：</span></div>
@@ -630,7 +645,7 @@ td.ok{color:var(--ok)}td.bad{color:var(--bad);font-weight:700}
 </div>
 
 <section class="pane" id="tab-calc" hidden>
-  <p class="lead">车间常用的几样算数，填数就出结果。</p>
+  <p class="lead">车工工具箱。下面是目录，每行都写了这个工具是干什么的，点开就能用；用完点左上角返回。</p>
   <div class="calcs">
     <div class="card">
       <h3>转速和线速度</h3>
@@ -5308,6 +5323,143 @@ bind('tbSym',function(){
       render();}
   });
 })();
+})();
+</script>
+<script>
+/* ===== 工具箱目录：列表 → 详情（学 App Store 上架 App 的通行格局） =====
+   只搬动显示方式：把「计算」页里几十张卡片收成一个带分组、一句话说明的目录，
+   点一行才打开那一个工具（顶部有返回）。卡片本身和里面的计算逻辑一概不动。 */
+(function(){
+  'use strict';
+  var pane=document.getElementById('tab-calc');
+  if(!pane)return;
+  var cards=Array.prototype.slice.call(pane.querySelectorAll('.card'));
+  if(cards.length<5)return;
+
+  /* 每个工具一句话：干什么的、什么时候用 */
+  var SUB={
+    '转速和线速度':'知道线速度算主轴转速，或者反过来算',
+    '每转进给换成每分钟进给':'F 的两种写法互换，G98 和 G99 别填混了',
+    '切刀磨了以后怎么补':'刀磨短了，算要在刀补里补多少',
+    '槽车出来宽了窄了':'槽宽不对，算槽刀位置要补多少',
+    '锥度':'知道大小头和长度，算锥度的斜角',
+    '普通外螺纹（公制）':'查牙高和底径，车螺纹之前先看一眼',
+    '断电后所有刀 Z 一起补':'停电重启以后，把所有刀的 Z 一起对回来',
+    '拐角加 R：求两个切点':'两条直线夹一个圆角，算两个切点的坐标',
+    '圆弧接直线：求切点':'直线接圆弧，算相切那个点的坐标',
+    '公差查询（ISO 286）':'查 H7、g6 这类配合，上下偏差是多少',
+    '螺纹计算（公制）':'算螺纹的牙高、中径、底径',
+    '管螺纹速查（G / Rc）':'查管螺纹的尺寸和攻丝底孔',
+    '三针法测螺纹中径':'用三针量螺纹，算读数应该是多少才合格',
+    '锥度计算':'算锥度比、斜角、大头小头',
+    '解三角形':'知道几个边和角，算剩下的边和角',
+    '编程坐标点（求交点/切点）':'算轮廓交点的坐标，写程序时用',
+    '转速进给时间':'算转速、进给，再算车一件要多长时间',
+    '粗糙度估算':'按刀尖 R 和进给，估表面能车到多光',
+    '刀尖 R 补偿量':'车锥面和圆弧时，算刀尖 R 带来的误差',
+    '材料重量':'按尺寸算一段棒料有多重',
+    '棒料出件数':'一根棒料能车出多少件',
+    '硬度换算':'HRC、HB、HV 三种硬度互换',
+    '单位换算':'毫米和英寸、各种单位互换',
+    '锥管螺纹速查（Rc / NPT）':'查 Rc、NPT 锥管螺纹的尺寸',
+    '攻丝底孔速查（收藏表）':'攻丝之前钻多大的底孔，查这张表',
+    '阶梯外圆（G71+G70）':'填几段直径和长度，自动写出粗车精车程序',
+    '内孔镗孔':'填孔的尺寸，自动写镗孔程序',
+    '切槽':'填槽的位置、宽和深，自动写切槽程序',
+    '钻深孔（啄钻）':'自动写分段进给的啄钻程序',
+    '螺纹（直 / 锥管）':'自动写 G92 螺纹程序，锥管螺纹也能写',
+    '椭圆 / 抛物线轮廓':'用宏程序写椭圆、抛物线轮廓',
+    'G / M 代码速查':'忘了某个代码是什么意思，查这里',
+    '图纸符号速查':'图纸上的符号看不懂，查这里',
+    '程序库（存本机）':'把常用程序存起来，随时调出来用',
+    '切削参数推荐（经验参考值）':'不知道给多少转速进给，先参考这张表',
+    '车刀角度参考（经验值）':'磨刀的时候，每个角度给多少看这里',
+    '网纹 / 8 字油槽（参数参考）':'车网纹、油槽的参数参考',
+    '说明：数据口径与模拟器局限':'这个 App 的数哪来的、模拟器哪些地方不能当真'
+  };
+  function dispTitle(t){ return t.replace(/^程序生成 · /,''); }
+  function titleOf(card){ var h=card.querySelector('h3'); return h?h.textContent.trim():''; }
+  function groupOf(card){
+    if(!card.classList.contains('tb'))return '快速计算';
+    var id=card.id||'';
+    if(id.indexOf('tbGen')===0)return '生成程序';
+    if(id==='tbLib'||id==='tbAbout')return '存程序 · 说明';
+    if(['tbTaperTh','tbTap','tbDict','tbSym','tbCutParam','tbToolAng','tbRef'].indexOf(id)>=0)return '速查表';
+    return '计算工具';
+  }
+  var GORDER=['快速计算','计算工具','生成程序','速查表','存程序 · 说明'];
+
+  var idx=document.createElement('div');
+  idx.id='toolIdx';
+  var search=document.createElement('div');
+  search.className='search';
+  search.innerHTML='<input type="search" id="toolQ" placeholder="搜工具，比如 螺纹、公差、底孔" aria-label="搜索工具">';
+  idx.appendChild(search);
+  var groups={};
+  GORDER.forEach(function(g){
+    var sec=document.createElement('div');
+    sec.className='idx-group';
+    var h=document.createElement('h4'); h.textContent=g;
+    sec.appendChild(h);
+    idx.appendChild(sec);
+    groups[g]=sec;
+  });
+
+  var bar=document.createElement('div');
+  bar.id='toolBar';
+  bar.className='tool-bar';
+  bar.hidden=true;
+  bar.innerHTML='<button type="button" id="toolBack">‹ 返回目录</button><div class="tool-bar-t"><div id="toolName"></div><div id="toolSub"></div></div>';
+
+  var rows=[];
+  cards.forEach(function(card){
+    var t=titleOf(card);
+    if(!t)return;
+    var row=document.createElement('button');
+    row.type='button';
+    row.className='idx-row';
+    var main=document.createElement('span'); main.className='idx-main';
+    var tt=document.createElement('span'); tt.className='idx-t'; tt.textContent=dispTitle(t);
+    var ss=document.createElement('span'); ss.className='idx-s'; ss.textContent=SUB[t]||'';
+    main.appendChild(tt); main.appendChild(ss);
+    var go=document.createElement('span'); go.className='idx-go'; go.textContent='›';
+    row.appendChild(main); row.appendChild(go);
+    row.addEventListener('click',function(){ openTool(card,t); });
+    groups[groupOf(card)].appendChild(row);
+    rows.push({el:row,text:t+' '+(SUB[t]||''),sec:groups[groupOf(card)]});
+    card.style.display='none';
+  });
+
+  var lead=pane.querySelector('.lead');
+  if(lead){ lead.insertAdjacentElement('afterend',idx); }
+  else{ pane.appendChild(idx); }
+  pane.insertBefore(bar,pane.firstChild);
+
+  function openTool(card,t){
+    idx.hidden=true;
+    bar.hidden=false;
+    cards.forEach(function(c){ c.style.display='none'; });
+    card.style.display='';
+    document.getElementById('toolName').textContent=dispTitle(t);
+    document.getElementById('toolSub').textContent=SUB[t]||'';
+    try{ window.scrollTo(0,0); }catch(e){}
+  }
+  function closeTool(){
+    bar.hidden=true;
+    idx.hidden=false;
+    cards.forEach(function(c){ c.style.display='none'; });
+    try{ window.scrollTo(0,0); }catch(e){}
+  }
+  document.getElementById('toolBack').addEventListener('click',closeTool);
+  document.getElementById('toolQ').addEventListener('input',function(){
+    var q=this.value.trim();
+    rows.forEach(function(r){ r.el.style.display=(!q||r.text.indexOf(q)>=0)?'':'none'; });
+    GORDER.forEach(function(g){
+      var sec=groups[g];
+      var any=Array.prototype.some.call(sec.querySelectorAll('.idx-row'),function(el){ return el.style.display!=='none'; });
+      sec.style.display=any?'':'none';
+    });
+  });
 })();
 </script>
 </body>
